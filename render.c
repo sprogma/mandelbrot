@@ -183,11 +183,27 @@ int init_device(struct render *r)
 
     if (r->config.device_id == -1)
     {
-        printf("Defaulting to device %u.\n", default_device);
+        printf("Selecting default device: %u\n", default_device);
     }
     else
     {
-        
+        /* check that gpu */
+        if (r->config.device_id < 0 || (uint32_t)r->config.device_id >= deviceCount)
+        {
+            printf("Wrong device id: %d\n", r->config.device_id);
+            SDL_DestroyWindow(r->window);
+            SDL_Quit();
+            free(r);
+            return 1;
+        }
+        if (!isComputeSupported(devices[r->config.device_id]))
+        {
+            printf("Device %d doesn't support compute pipelines\n", r->config.device_id);
+            SDL_DestroyWindow(r->window);
+            SDL_Quit();
+            free(r);
+            return 1;
+        }
     }
 
     return 0;
