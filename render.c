@@ -13,6 +13,9 @@ struct render
     struct render_config config;
     SDL_Window *window;
     VkInstance instance;
+    VkPhysicalDevice physical_device;
+    VkDevice device;
+    VkQueue queue;
 };
 
 
@@ -113,27 +116,28 @@ int init_instance(struct render *r)
     return 0;
 }
 
-bool isComputeSupported(VkPhysicalDevice device) 
-{
+
+uint32_t findComputeQueueFamily(VkPhysicalDevice physDevice) {
     uint32_t queueFamilyCount = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueFamilyCount, NULL);
 
     VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
+    vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &queueFamilyCount, queueFamilies);
 
     for (uint32_t i = 0; i < queueFamilyCount; i++) 
     {
         if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) 
         {
             free(queueFamilies);
-            return true;
+            return i;
         }
     }
+
     free(queueFamilies);
-    return false;
+    return UINT32_MAX;
 }
 
-int init_device(struct render *r)
+int find_device(struct render *r)
 {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(r->instance, &deviceCount, NULL);
@@ -166,7 +170,7 @@ int init_device(struct render *r)
             printf("    Intergated gpu\n");
         }
 
-        if (isComputeSupported(devices[i]))
+        if (findComputeQueueFamily(devices[i]) != UINT32_MAX)
         {
             printf("    Computing supported\n");
             if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && !default_device_is_gpu)
@@ -181,9 +185,12 @@ int init_device(struct render *r)
         }
     }
 
+    uint32_t selected;
+
     if (r->config.device_id == -1)
     {
         printf("Selecting default device: %u\n", default_device);
+        selected = default_device;
     }
     else
     {
@@ -196,7 +203,7 @@ int init_device(struct render *r)
             free(r);
             return 1;
         }
-        if (!isComputeSupported(devices[r->config.device_id]))
+        if (findComputeQueueFamily(devices[r->config.device_id]) == UINT32_MAX)
         {
             printf("Device %d doesn't support compute pipelines\n", r->config.device_id);
             SDL_DestroyWindow(r->window);
@@ -204,36 +211,59 @@ int init_device(struct render *r)
             free(r);
             return 1;
         }
+        
+        selected = r->config.device_id;
     }
+
+    r->physical_device = devices[selected];
 
     return 0;
 }
 
-int init_queue(struct render *r)
-{
-//     uint32_t queueFamilyCount = 0;
-//     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
-// 
-//     VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
-//     vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies);
-// 
-//     bool computeSupported = false;
-//     for (uint32_t i = 0; i < queueFamilyCount; i++) 
-//     {
-//         if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) 
-//         {
-//             computeSupported = true;
-//             break;
-//         }
-//     }
-//     free(queueFamilies);
-// 
-//     if (!computeSupported) 
-//     {
-//         printf("Compute shaders aren't supported by this gpu.\n");
-//         return 1;
-//     }
 
+int init_device_and_queue(struct render *r)
+{
+    uint32_t computeFamilyIndex = findComputeQueueFamily(r->physical_device);
+    if (computeFamilyIndex == UINT32_MAX)
+    {
+        printf("Can't find compute family on that device.\n");
+        SDL_DestroyWindow(r->window);
+        SDL_Quit();
+        free(r);
+        return 1;
+    }
+
+    float queuePriority = 1.0f;
+
+    VkDeviceQueueCreateInfo queueCreateInfo = {0};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = computeFamilyIndex;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+
+    VkDeviceCreateInfo deviceCreateInfo = {0};
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+
+    deviceCreateInfo.enabledExtensionCount = 0;
+    deviceCreateInfo.ppEnabledExtensionNames = NULL;
+
+
+    VkResult result = vkCreateDevice(r->physical_device, &deviceCreateInfo, NULL, &r->device);
+    if (result != VK_SUCCESS) 
+    {
+        printf("Can't create device from physical device. Error %d\n", result);
+        SDL_DestroyWindow(r->window);
+        SDL_Quit();
+        free(r);
+        return 1;
+    }
+
+    vkGetDeviceQueue(r->device, computeFamilyIndex, 0, &r->queue);
+
+    printf("Device and Queue created.\n");
     return 0;
 }
 
@@ -247,8 +277,8 @@ struct render *init_render(const struct render_config *config)
 
     RETFROM(init_window(r));
     RETFROM(init_instance(r));
-    RETFROM(init_device(r));
-    RETFROM(init_queue(r));
+    RETFROM(find_device(r));
+    RETFROM(init_device_and_queue(r));
 
     return r;
 }
