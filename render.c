@@ -1,4 +1,6 @@
 #include "render.h"
+#include "mandelbrot.h"
+
 #include "string.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -54,6 +56,9 @@ struct render
     VkDescriptorSet *descriptor_sets;
 
 /* buffers */
+    VkBuffer download_buffer;
+    VkDeviceMemory download_memory;
+    
     VkBuffer staging_buffer;
     VkDeviceMemory staging_memory;
 
@@ -905,6 +910,31 @@ int init_compute_pipeline(struct render *r, const char* shader_path)
     return 0;
 }
 
+int init_download_buffers(struct render *r) {
+    VkDeviceSize size = r->config.w * r->config.h * 4;
+
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    vkCreateBuffer(r->device, &bufferInfo, NULL, &r->download_buffer);
+
+    VkMemoryRequirements memReqs;
+    vkGetBufferMemoryRequirements(r->device, r->download_buffer, &memReqs);
+
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReqs.size;
+    allocInfo.memoryTypeIndex = find_memory_type(r, memReqs.memoryTypeBits, 
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    vkAllocateMemory(r->device, &allocInfo, NULL, &r->download_memory);
+    vkBindBufferMemory(r->device, r->download_buffer, r->download_memory, 0);
+    
+    return 0;
+}
 
 int init_descriptor_sets(struct render *r) 
 {
@@ -1061,7 +1091,7 @@ int init_syncs(struct render *r)
 
 struct render *init_render(const struct render_config *config)
 {
-    struct render *r = malloc(sizeof(*r));
+    struct render *r = calloc(1, sizeof(*r));
     
     r->config = *config;
 
@@ -1074,6 +1104,7 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_intermediate_image(r));
     RETFROM(init_commands(r));
     RETFROM(create_buffers(r, 1024));
+    RETFROM(init_download_buffers(r));
     RETFROM(init_render_targets(r));
     RETFROM(init_pipeline_layout(r));
     RETFROM(init_compute_pipeline(r, "./kernel_opt.spv"));
@@ -1086,12 +1117,44 @@ struct render *init_render(const struct render_config *config)
     return r;
 }
 
-void render_image(struct render *r)
+
+int save_to_file(struct render *r)
 {
+    size_t size = r->config.w * r->config.h * 4;
+    void* data;
+    vkMapMemory(r->device, r->download_memory, 0, size, 0, &data);
+    // fwrite(data, 1, size, file);
+    vkUnmapMemory(r->device, r->download_memory); 
+
+    return 0;
+}
+
+
+void render_image(struct render *r, struct path_data *path)
+{
+    VkDeviceSize buffer_size = path->points_count * path->path_length * sizeof(float) * 2;
+    vkMapMemory(r->device, r->staging_memory, 0, buffer_size, 0, (void **)&path->data);
+
+    const int64_t counter_step = 30;
+    int64_t time_ms = SDL_GetPerformanceCounter(), counter = 0;
+    double freq = SDL_GetPerformanceFrequency();
+    
     while (1)
     {
+        if ((++counter) % counter_step == 0)
+        {
+            int64_t new_time = SDL_GetPerformanceCounter();
+            double fps = freq / ((double)(new_time - time_ms) / counter_step);
+            time_ms = new_time;
+            printf("Measured %10.2f fps.\n", fps);
+        }
         vkWaitForFences(r->device, 1, &r->in_flight_fence, VK_TRUE, UINT64_MAX);
         vkResetFences(r->device, 1, &r->in_flight_fence);
+        
+        if (!calculate_path(path))
+        {
+            return;
+        }
         
         uint32_t image_index = 0;
 
@@ -1104,8 +1167,27 @@ void render_image(struct render *r)
         VkCommandBufferBeginInfo begin_info = {};
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        
         vkBeginCommandBuffer(r->cmd_buffer, &begin_info);
+
+        VkBufferCopy copyRegion = {0, 0, buffer_size};
+        vkCmdCopyBuffer(r->cmd_buffer, r->staging_buffer, r->device_buffer, 1, &copyRegion);        
+
+        VkBufferMemoryBarrier buffer_barrier = {};
+        buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        buffer_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        buffer_barrier.buffer = r->device_buffer;
+        buffer_barrier.size = VK_WHOLE_SIZE;
+
+        vkCmdPipelineBarrier(
+            r->cmd_buffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0, 0, NULL, 1, &buffer_barrier, 0, NULL
+        );
+        
 
         VkImageMemoryBarrier barrier = {};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1131,7 +1213,7 @@ void render_image(struct render *r)
 
         vkCmdPipelineBarrier(
             r->cmd_buffer,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             0, 0, NULL, 0, NULL, 1, &barrier
         );
@@ -1156,8 +1238,8 @@ void render_image(struct render *r)
         struct push_constant_parameter params;
         params.time = (float)SDL_GetTicks() / 1000.0f;
         params._1_zoom = 0.25 / (params.time);
-        params.anchor_points = 20;
-        params.path_length = 1000;
+        params.anchor_points = path->points_count;
+        params.path_length = path->path_length;
         params.center[0] = 0.5;
         params.center[1] = 0.5;
 
@@ -1205,6 +1287,24 @@ void render_image(struct render *r)
             0, 0, NULL, 0, NULL, 1, &present_barrier
         );
 
+        if (r->config.output_filename)
+        {
+            VkBufferImageCopy region = {};
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.layerCount = 1;
+            region.imageExtent.width = r->config.w;
+            region.imageExtent.height = r->config.h;
+            region.imageExtent.depth = 1;
+
+            vkCmdCopyImageToBuffer(r->cmd_buffer, r->swapchain_images[0], 
+                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+                                   r->download_buffer, 1, &region);
+                                                          
+        }
+
         vkEndCommandBuffer(r->cmd_buffer);
 
         VkSubmitInfo submitInfo = {};
@@ -1212,7 +1312,7 @@ void render_image(struct render *r)
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &r->cmd_buffer;
 
-        if (r->window) 
+        if (!r->config.output_filename) 
         {
             static VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
             submitInfo.waitSemaphoreCount = 1;
@@ -1229,7 +1329,7 @@ void render_image(struct render *r)
 
         vkQueueSubmit(r->queue, 1, &submitInfo, r->in_flight_fence);
 
-        if (r->window) 
+        if (!r->config.output_filename) 
         {
             VkPresentInfoKHR presentInfo = {};
             presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1250,18 +1350,13 @@ void render_image(struct render *r)
                 }
             }
         }
+        else
+        {
+            vkWaitForFences(r->device, 1, &r->in_flight_fence, VK_TRUE, UINT64_MAX);
+            save_to_file(r);
+        }
     }
 }
-
-void cleanup_buffers(struct render *r) 
-{
-    vkDestroyBuffer(r->device, r->staging_buffer, NULL);
-    vkFreeMemory(r->device, r->staging_memory, NULL);
-    
-    vkDestroyBuffer(r->device, r->device_buffer, NULL);
-    vkFreeMemory(r->device, r->device_memory, NULL);
-}
-
 
 void render_deinit(struct render *r)
 {
@@ -1279,6 +1374,12 @@ void render_deinit(struct render *r)
     vkDestroyPipelineLayout(r->device, r->pipeline_layout, NULL);
     vkDestroyDescriptorSetLayout(r->device, r->descriptor_set_layout, NULL);
     vkDestroyDescriptorPool(r->device, r->descriptor_pool, NULL);
+    
+    if (r->download_buffer) 
+    {
+        vkDestroyBuffer(r->device, r->download_buffer, NULL);
+        vkFreeMemory(r->device, r->download_memory, NULL);
+    }
 
     if (r->device_buffer) 
     {

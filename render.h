@@ -5,6 +5,8 @@
 #include "math.h"
 #include "inttypes.h"
 
+#include "mandelbrot.h"
+
 
 struct render_config
 {
@@ -23,7 +25,7 @@ struct render;
 
 
 struct render *init_render(const struct render_config *config);
-void render_image(struct render *render);
+void render_image(struct render *r, struct path_data *path);
 void render_deinit(struct render *render);
 
 

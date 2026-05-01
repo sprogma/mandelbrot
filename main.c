@@ -8,6 +8,7 @@
 #include "inttypes.h"
 
 
+#include "mandelbrot.h"
 #include "render.h"
 
 
@@ -165,13 +166,14 @@ brainrot.exe -l # to see fps/current zoom/other information
         }
     }
 
-    /* init vulkan */
-
+    struct path_data data = {};
+    data.total_images = 100000;
+    data.start_zoom = 1.0;
+    data.zoom_step = 0.01;
+    
     auto render = init_render(&config);
-    render_image(render);
+    render_image(render, &data);
     render_deinit(render);
-
-    /* all arguments was parced correctly, print configuration */
 
     return 0;
 }
