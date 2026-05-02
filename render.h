@@ -18,6 +18,7 @@ struct render_config
     bool show_info;
     int64_t w, h;
     int32_t device_id;
+    int64_t fps;
 };
 
 

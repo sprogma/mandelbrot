@@ -88,6 +88,7 @@ int main(int argc, const char **argv)
         .w = 800,
         .h = 600,
         .device_id = -1,
+        .fps = 60,
     };
     for (int i = 1; i < argc; ++i)
     {
@@ -167,7 +168,7 @@ brainrot.exe -l # to see fps/current zoom/other information
     }
 
     struct path_data data = {};
-    data.total_images = 100000;
+    data.total_images = 600;
     data.start_zoom = 1.0;
     data.zoom_step = 0.01;
     

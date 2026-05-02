@@ -35,6 +35,7 @@ void main(uint3 dtid : SV_DispatchThreadID)
     
     float4 data = float4(0,0,0,1);
     float min_dist = 1e30;
+    uint base = 0;
     for (uint i = 0; i < params.anchor_points; ++i)
     {
         float2 d = pathBuffer[i * params.path_length] - position;
@@ -42,11 +43,12 @@ void main(uint3 dtid : SV_DispatchThreadID)
         if (min_dist > l)
         {
             min_dist = l;
-            data = float4(sin(i + params.time + position.y), 
-                          cos(i - params.time - position.x), 
-                          sin(i+1.0+params.time) - cos(i-1.0+params.time), 
+            data = float4(sin(i + params.time + position.y / pathBuffer[base + 0].x), 
+                          cos(i - params.time - position.x / pathBuffer[base + 0].y), 
+                          (pathBuffer[base + 0].x - 0.5) * 2.0, 
                           1.0) * 0.5 + 0.5;
         }
+        base += params.path_length;
     }
     destImage[dtid.xy] = data;
 }

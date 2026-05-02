@@ -1,6 +1,7 @@
 #include "render.h"
 #include "mandelbrot.h"
 
+#include "assert.h"
 #include "string.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -10,6 +11,16 @@
 #include <vulkan/vulkan.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+
+#include <libavcodec/avcodec.h>
+#include <libavutil/avutil.h>
+#include <libavutil/hwcontext.h>
+#include <libavutil/hwcontext_vulkan.h>
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/opt.h>
+#include <libswscale/swscale.h>
+
 
 
 struct push_constant_parameter
@@ -79,6 +90,15 @@ struct render
     VkSemaphore image_available_sem;
     VkSemaphore render_finished_sem;
     VkFence in_flight_fence;
+
+/* video encoding */
+    AVCodecContext *enc_ctx;
+    AVFormatContext *fmt_ctx;
+    AVStream *video_st;
+    AVFrame *frame;
+    AVPacket *pkt;
+    struct SwsContext *sws_ctx;
+    int64_t frame_count;
 };
 
 
@@ -446,9 +466,83 @@ int init_surface(struct render *r)
     return 0;
 }
 
+uint32_t find_memory_type(struct render *r, uint32_t typeFilter, VkMemoryPropertyFlags properties) 
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(r->physical_device, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) 
+    {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) 
+        {
+            return i;
+        }
+    }
+    return UINT32_MAX;
+}
+
 int init_swapchain(struct render *r) 
 {
-    if (r->config.output_filename) return 0;
+    if (r->config.output_filename)
+    {
+        r->image_count = 0;        
+        r->use_intermediate = true;
+        VkImageCreateInfo imageInfo = {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = r->config.w;
+        imageInfo.extent.height = r->config.h;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        
+        imageInfo.format = VK_FORMAT_B8G8R8A8_UNORM; 
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        
+        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+        if (vkCreateImage(r->device, &imageInfo, NULL, &r->intermediate_image) != VK_SUCCESS) {
+            printf("Failed to create intermediate image\n");
+            return 1;
+        }
+
+        VkMemoryRequirements memReqs;
+        vkGetImageMemoryRequirements(r->device, r->intermediate_image, &memReqs);
+
+        VkMemoryAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReqs.size;
+        
+        allocInfo.memoryTypeIndex = find_memory_type(r, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if (vkAllocateMemory(r->device, &allocInfo, NULL, &r->intermediate_memory) != VK_SUCCESS) {
+            printf("Failed to allocate image memory\n");
+            return 1;
+        }
+
+        vkBindImageMemory(r->device, r->intermediate_image, r->intermediate_memory, 0);
+
+        VkImageViewCreateInfo viewInfo = {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = r->intermediate_image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = imageInfo.format;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(r->device, &viewInfo, NULL, &r->intermediate_view) != VK_SUCCESS) {
+            printf("Failed to create image view\n");
+            return 1;
+        }
+
+        return 0;
+    }
 
     VkSurfaceCapabilitiesKHR capabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(r->physical_device, r->surface, &capabilities);
@@ -552,24 +646,9 @@ int init_swapchain(struct render *r)
     return 0;
 }
 
-uint32_t find_memory_type(struct render *r, uint32_t typeFilter, VkMemoryPropertyFlags properties) 
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(r->physical_device, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) 
-    {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) 
-        {
-            return i;
-        }
-    }
-    return UINT32_MAX;
-}
-
 int init_intermediate_image(struct render *r) 
 {
-    if (!r->use_intermediate) return 0;
+    if (r->config.output_filename || !r->use_intermediate) return 0;
     
     VkImageCreateInfo imageInfo = {};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -910,7 +989,8 @@ int init_compute_pipeline(struct render *r, const char* shader_path)
     return 0;
 }
 
-int init_download_buffers(struct render *r) {
+int init_download_buffers(struct render *r) 
+{
     VkDeviceSize size = r->config.w * r->config.h * 4;
 
     VkBufferCreateInfo bufferInfo = {};
@@ -1087,6 +1167,83 @@ int init_syncs(struct render *r)
     return 0;
 }
 
+int init_video(struct render *r)
+{
+    if (!r->config.output_filename) return 0;
+
+    r->frame_count = 0;
+
+    if (avformat_alloc_output_context2(&r->fmt_ctx, NULL, NULL, r->config.output_filename) < 0) 
+    {
+        printf("Can't create av context\n");
+        return 1;
+    }
+
+    const AVCodec *codec = avcodec_find_encoder_by_name("h264_qsv");
+    if (!codec) {
+        codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    }
+    if (!codec) return 1;
+
+    r->video_st = avformat_new_stream(r->fmt_ctx, NULL);
+    if (!r->video_st) return 1;
+
+    r->enc_ctx = avcodec_alloc_context3(codec);
+    if (!r->enc_ctx) return 1;
+
+    r->enc_ctx->width = r->config.w;
+    r->enc_ctx->height = r->config.h;
+    r->enc_ctx->time_base = (AVRational){1, r->config.fps};
+    r->enc_ctx->framerate = (AVRational){r->config.fps, 1};
+    r->enc_ctx->max_b_frames = 0;
+    
+    r->enc_ctx->pix_fmt = AV_PIX_FMT_NV12; 
+    r->enc_ctx->bit_rate = 15000000;
+
+    av_opt_set(r->enc_ctx->priv_data, "preset", "veryfast", 0);
+    av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    r->enc_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+    if (avcodec_open2(r->enc_ctx, codec, NULL) < 0) 
+    {
+        printf("Can't open codec\n");
+        return 1;
+    }
+
+    avcodec_parameters_from_context(r->video_st->codecpar, r->enc_ctx);
+    
+    r->video_st->time_base = r->enc_ctx->time_base;
+    r->video_st->avg_frame_rate = r->enc_ctx->framerate;
+
+    r->sws_ctx = sws_getContext(
+        r->config.w, r->config.h, AV_PIX_FMT_RGBA,
+        r->config.w, r->config.h, r->enc_ctx->pix_fmt,
+        SWS_FAST_BILINEAR, NULL, NULL, NULL
+    );
+
+    r->frame = av_frame_alloc();
+    r->frame->format = r->enc_ctx->pix_fmt;
+    r->frame->width  = r->enc_ctx->width;
+    r->frame->height = r->enc_ctx->height;
+    if (av_frame_get_buffer(r->frame, 0) < 0) return 1;
+
+    r->pkt = av_packet_alloc();
+
+    if (!(r->fmt_ctx->oformat->flags & AVFMT_NOFILE)) 
+    {
+        if (avio_open(&r->fmt_ctx->pb, r->config.output_filename, AVIO_FLAG_WRITE) < 0) 
+        {
+            printf("Can't open file\n");
+            return 1;
+        }
+    }
+
+    if (avformat_write_header(r->fmt_ctx, NULL) < 0) return 1;
+
+
+    return 0;
+}
+
 #define RETFROM(x) if (x) { return NULL; } 
 
 struct render *init_render(const struct render_config *config)
@@ -1103,7 +1260,7 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_swapchain(r));
     RETFROM(init_intermediate_image(r));
     RETFROM(init_commands(r));
-    RETFROM(create_buffers(r, 1024));
+    RETFROM(create_buffers(r, MAX_POINTS_COUNT * MAX_PATH_LENGTH * sizeof(float) * 2));
     RETFROM(init_download_buffers(r));
     RETFROM(init_render_targets(r));
     RETFROM(init_pipeline_layout(r));
@@ -1111,6 +1268,7 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_descriptor_sets(r));
     RETFROM(init_command_buffer(r));
     RETFROM(init_syncs(r));
+    RETFROM(init_video(r));
 
     printf("Initialzation finished.\n");
 
@@ -1122,29 +1280,65 @@ int save_to_file(struct render *r)
 {
     size_t size = r->config.w * r->config.h * 4;
     void* data;
-    vkMapMemory(r->device, r->download_memory, 0, size, 0, &data);
-    // fwrite(data, 1, size, file);
-    vkUnmapMemory(r->device, r->download_memory); 
+    if (vkMapMemory(r->device, r->download_memory, 0, size, 0, &data) != VK_SUCCESS)
+    {
+        printf("Map memory failed\n");
+        return 1;
+    }
+
+    av_frame_make_writable(r->frame);
+    
+    const uint8_t* src_slices[] = { (uint8_t*)data };
+    int src_strides[] = { r->config.w * 4 };
+
+    sws_scale(r->sws_ctx, src_slices, src_strides, 0, r->config.h, 
+              r->frame->data, r->frame->linesize);
+
+    vkUnmapMemory(r->device, r->download_memory);
+
+    r->frame->pts = r->frame_count++;
+
+    int ret = avcodec_send_frame(r->enc_ctx, r->frame);
+    if (ret < 0) return 1;
+
+    while (ret >= 0) 
+    {
+        ret = avcodec_receive_packet(r->enc_ctx, r->pkt);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
+
+        r->pkt->stream_index = r->video_st->index;
+        
+        av_packet_rescale_ts(r->pkt, r->enc_ctx->time_base, r->video_st->time_base);
+
+        ret = av_interleaved_write_frame(r->fmt_ctx, r->pkt);
+        av_packet_unref(r->pkt);
+    }
+
+
 
     return 0;
 }
 
 
+
+
 void render_image(struct render *r, struct path_data *path)
 {
-    VkDeviceSize buffer_size = path->points_count * path->path_length * sizeof(float) * 2;
+    VkDeviceSize buffer_size = MAX_POINTS_COUNT * MAX_PATH_LENGTH * sizeof(float) * 2;
     vkMapMemory(r->device, r->staging_memory, 0, buffer_size, 0, (void **)&path->data);
 
-    const int64_t counter_step = 30;
     int64_t time_ms = SDL_GetPerformanceCounter(), counter = 0;
-    double freq = SDL_GetPerformanceFrequency();
+    int64_t ifreq = SDL_GetPerformanceFrequency();
+    int64_t ffreq = SDL_GetPerformanceFrequency();
     
     while (1)
     {
-        if ((++counter) % counter_step == 0)
+        int64_t new_time = SDL_GetPerformanceCounter();
+        counter++;
+        if (new_time - time_ms > ifreq)
         {
-            int64_t new_time = SDL_GetPerformanceCounter();
-            double fps = freq / ((double)(new_time - time_ms) / counter_step);
+            double fps = counter / ((double)(new_time - time_ms)) * ffreq;
+            counter = 0;
             time_ms = new_time;
             printf("Measured %10.2f fps.\n", fps);
         }
@@ -1245,11 +1439,16 @@ void render_image(struct render *r, struct path_data *path)
 
         vkCmdPushConstants(r->cmd_buffer, r->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(struct push_constant_parameter), &params);
 
-        uint32_t gx = (r->swapchain_extent.width + WORK_GROUP_SIZE_X - 1) / WORK_GROUP_SIZE_X;
-        uint32_t gy = (r->swapchain_extent.height + WORK_GROUP_SIZE_Y - 1) / WORK_GROUP_SIZE_Y;
+        uint32_t gx = (r->config.w + WORK_GROUP_SIZE_X - 1) / WORK_GROUP_SIZE_X;
+        uint32_t gy = (r->config.h + WORK_GROUP_SIZE_Y - 1) / WORK_GROUP_SIZE_Y;
+        if (!r->config.output_filename)
+        {
+            assert(r->config.w == r->swapchain_extent.width);
+            assert(r->config.h == r->swapchain_extent.height);
+        }
         vkCmdDispatch(r->cmd_buffer, gx, gy, 1);
 
-        if (r->use_intermediate && r->window) 
+        if (r->use_intermediate && !r->config.output_filename) 
         {
             
             VkImageCopy copyRegion = {};
@@ -1268,41 +1467,70 @@ void render_image(struct render *r, struct path_data *path)
                 1, &copyRegion
             );
         }
-
-        VkImageMemoryBarrier present_barrier = {};
-        present_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        present_barrier.oldLayout = r->use_intermediate ? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
-        present_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        present_barrier.image = r->swapchain_images[image_index];
-        present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        present_barrier.subresourceRange.levelCount = 1;
-        present_barrier.subresourceRange.layerCount = 1;
-        present_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-        present_barrier.dstAccessMask = 0;
-
-        vkCmdPipelineBarrier(
-            r->cmd_buffer,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-            0, 0, NULL, 0, NULL, 1, &present_barrier
-        );
-
         if (r->config.output_filename)
         {
+            VkImageMemoryBarrier copy_barrier = {};
+            copy_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            
+            copy_barrier.image = r->intermediate_image;
+            copy_barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL; 
+            copy_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            copy_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            copy_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            copy_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy_barrier.subresourceRange.levelCount = 1;
+            copy_barrier.subresourceRange.layerCount = 1;
+
+            vkCmdPipelineBarrier(r->cmd_buffer, 
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                0, 0, NULL, 0, NULL, 1, &copy_barrier);
+
             VkBufferImageCopy region = {};
-            region.bufferOffset = 0;
-            region.bufferRowLength = 0;
-            region.bufferImageHeight = 0;
             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             region.imageSubresource.layerCount = 1;
-            region.imageExtent.width = r->config.w;
-            region.imageExtent.height = r->config.h;
-            region.imageExtent.depth = 1;
+            region.imageExtent = (VkExtent3D){ r->config.w, r->config.h, 1 };
 
-            vkCmdCopyImageToBuffer(r->cmd_buffer, r->swapchain_images[0], 
+            vkCmdCopyImageToBuffer(r->cmd_buffer, copy_barrier.image, 
                                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
                                    r->download_buffer, 1, &region);
-                                                          
+            
+            copy_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            copy_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            copy_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            copy_barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            vkCmdPipelineBarrier(r->cmd_buffer, 
+                VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                0, 0, NULL, 0, NULL, 1, &copy_barrier);      
+
+            VkBufferMemoryBarrier mem_barrier = {};
+            mem_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            mem_barrier.buffer = r->download_buffer;
+            mem_barrier.size = VK_WHOLE_SIZE;
+            mem_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            mem_barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+            vkCmdPipelineBarrier(r->cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, NULL, 1, &mem_barrier, 0, NULL);                                                   
+        }
+        else
+        {
+            VkImageMemoryBarrier present_barrier = {};
+            present_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            present_barrier.oldLayout = r->use_intermediate ? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+            present_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            present_barrier.image = r->swapchain_images[image_index];
+            present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            present_barrier.subresourceRange.levelCount = 1;
+            present_barrier.subresourceRange.layerCount = 1;
+            present_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            present_barrier.dstAccessMask = 0;
+
+            vkCmdPipelineBarrier(
+                r->cmd_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                0, 0, NULL, 0, NULL, 1, &present_barrier
+            );
         }
 
         vkEndCommandBuffer(r->cmd_buffer);
@@ -1358,8 +1586,45 @@ void render_image(struct render *r, struct path_data *path)
     }
 }
 
+void close_video(struct render *r) 
+{
+    if (!r->fmt_ctx) return;
+
+
+    avcodec_send_frame(r->enc_ctx, NULL); 
+    
+    while (avcodec_receive_packet(r->enc_ctx, r->pkt) >= 0) 
+    {
+        r->pkt->stream_index = r->video_st->index;
+
+        av_packet_rescale_ts(r->pkt, r->enc_ctx->time_base, r->video_st->time_base);
+
+        av_interleaved_write_frame(r->fmt_ctx, r->pkt);
+        av_packet_unref(r->pkt);
+    }
+
+    av_write_trailer(r->fmt_ctx);
+
+    if (!(r->fmt_ctx->oformat->flags & AVFMT_NOFILE)) 
+    {
+        avio_closep(&r->fmt_ctx->pb);
+    }
+    avcodec_free_context(&r->enc_ctx);
+    av_frame_free(&r->frame);
+    av_packet_free(&r->pkt);
+    avformat_free_context(r->fmt_ctx);
+    sws_freeContext(r->sws_ctx);
+    
+    r->fmt_ctx = NULL;
+}
+
+
+
+
 void render_deinit(struct render *r)
 {
+    close_video(r);
+
     if (r->device) 
     {
         vkDeviceWaitIdle(r->device);

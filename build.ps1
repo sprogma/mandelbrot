@@ -1,7 +1,12 @@
 $DEBUG = @("-g", "-fsanitize=address")
 
 $CFLAGS = @("-std=gnu2y") + $DEBUG
-$LDFLAGS = @("-lsdl3", "-LD:/c/SDL3/lib/x64", "-LD:/c/vulkanSDK/Lib", "-lvulkan-1") + $DEBUG
+$LDFLAGS = @("-lsdl3", "-LD:/c/SDL3/lib/x64", 
+             "-LD:/c/vulkanSDK/Lib", "-lvulkan-1",
+             "-LC:/Program Files/ffmpeg/lib", "-lavcodec",
+             "-lavutil",
+             "-lswscale",
+             "-lavformat") + $DEBUG
 
 clang (ls *.c | % { 
     (clang -c $_ -o "$_.o" $CFLAGS | oh) || $(Write-Host "Error: file $($_.Name) con't compiled" -Fore red; exit 1)
