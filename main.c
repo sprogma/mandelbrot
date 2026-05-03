@@ -85,8 +85,10 @@ int main(int argc, const char **argv)
         .i_zoom_ps = 0.1,
         .output_filename = NULL,
         .show_info = true,
-        .w = 800,
-        .h = 600,
+        .use_float64 = false,
+        .use_accelerated_encoding = false,
+        .w = 1920,
+        .h = 1080,
         .device_id = -1,
         .fps = 60,
     };
@@ -104,7 +106,9 @@ use -t X to select zooming time [seconds]
 use -z X to select zooming per second [power of 10]
 use -l   to enable showing/logging information
 use -r X Y to select resolution in pixels.
-use -d X to select device by id.
+use -d X to select device by d.
+use -f64 to enable float64.
+use -ae to enable accelerated video encoding (if supported by device).
 
 if you used -e:
     you can't use both -t and -z
@@ -113,7 +117,7 @@ if you don't used -e:
     
 if you don't used -s, initial zoom will be 1.0 [equal to -s 0.0]
 
-default resolution is 800/600
+default resolution is 1920/1080
 
 default device is any discrete gpu if it exists, else one of other.
 
@@ -165,12 +169,34 @@ brainrot.exe -l # to see fps/current zoom/other information
         {
             config.show_info = true;
         }
+        else if (strcmp(argv[i], "-f64") == 0)
+        {
+            config.use_float64 = true;
+        }
+        else if (strcmp(argv[i], "-ae") == 0)
+        {
+            config.use_accelerated_encoding = true;
+        }
     }
 
     struct path_data data = {};
-    data.total_images = 600;
-    data.start_zoom = 1.0;
-    data.zoom_step = 0.01;
+    data.total_images = 60 * config.i_zoom_time;
+    data.zoom_step = 0.99;
+
+    /*
+        interesting points
+        
+        -0.743643887037158
+        0.131825904206411
+
+
+        -1.7687788
+        0.0017389
+    */
+
+    init_path(&data, 1.0, -0.743643887037158, 0.131825904206411);
+
+    optimize_depth(data.center[0], data.center[1], 60, true);
     
     auto render = init_render(&config);
     render_image(render, &data);

@@ -25,7 +25,8 @@
 
 struct push_constant_parameter
 {
-    float _1_zoom;
+    float zoom_m;
+    int zoom_e;
     float time;
     uint32_t anchor_points;
     uint32_t path_length;
@@ -99,6 +100,10 @@ struct render
     AVPacket *pkt;
     struct SwsContext *sws_ctx;
     int64_t frame_count;
+
+    AVBufferRef *hw_device_ctx;
+    AVBufferRef *hw_frames_ctx;
+    VkSemaphore render_sem;
 };
 
 
@@ -248,9 +253,12 @@ const char *checkDevice(struct render *r, VkPhysicalDevice device)
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    if (!supportedFeatures.shaderFloat64) 
+    if (r->config.use_float64)
     {
-        return "float64 not supported";
+        if (!supportedFeatures.shaderFloat64) 
+        {
+            return "float64 not supported";
+        }
     }
             
     uint32_t extensionCount;
@@ -430,7 +438,10 @@ int init_device_and_queue(struct render *r)
     }
     
     VkPhysicalDeviceFeatures deviceFeatures = {};
-    deviceFeatures.shaderFloat64 = VK_TRUE;
+    if (r->config.use_float64)
+    {
+        deviceFeatures.shaderFloat64 = VK_TRUE;
+    }
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
     VkResult result = vkCreateDevice(r->physical_device, &deviceCreateInfo, NULL, &r->device);
@@ -1171,6 +1182,12 @@ int init_video(struct render *r)
 {
     if (!r->config.output_filename) return 0;
 
+    if (r->config.use_accelerated_encoding)
+    {
+        printf("Not supported.\n");
+        return 1;
+    }
+
     r->frame_count = 0;
 
     if (avformat_alloc_output_context2(&r->fmt_ctx, NULL, NULL, r->config.output_filename) < 0) 
@@ -1264,7 +1281,12 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_download_buffers(r));
     RETFROM(init_render_targets(r));
     RETFROM(init_pipeline_layout(r));
-    RETFROM(init_compute_pipeline(r, "./kernel_opt.spv"));
+    if (r->config.use_float64)
+    {
+        printf("Error: For now, float64 aren't supported.\n");
+        return NULL;
+    }
+    RETFROM(init_compute_pipeline(r, (r->config.use_float64 ? "./kernel64_opt.spv" : "./kernel_opt.spv")));
     RETFROM(init_descriptor_sets(r));
     RETFROM(init_command_buffer(r));
     RETFROM(init_syncs(r));
@@ -1330,9 +1352,26 @@ void render_image(struct render *r, struct path_data *path)
     int64_t time_ms = SDL_GetPerformanceCounter(), counter = 0;
     int64_t ifreq = SDL_GetPerformanceFrequency();
     int64_t ffreq = SDL_GetPerformanceFrequency();
+
+    double dz = 1.0;
+    double dx = 0.0;
+    double dy = 0.0;
     
     while (1)
     {
+        vkWaitForFences(r->device, 1, &r->in_flight_fence, VK_TRUE, UINT64_MAX);
+        vkResetFences(r->device, 1, &r->in_flight_fence);
+
+
+        struct push_constant_parameter params;
+        params.time = path->time;
+        params.anchor_points = path->points_count;
+        params.path_length = path->path_length;
+        if (!calculate_path(path, &params.zoom_m, &params.zoom_e, &params.center[0], &params.center[1]))
+        {
+            return;
+        }
+        
         int64_t new_time = SDL_GetPerformanceCounter();
         counter++;
         if (new_time - time_ms > ifreq)
@@ -1340,14 +1379,7 @@ void render_image(struct render *r, struct path_data *path)
             double fps = counter / ((double)(new_time - time_ms)) * ffreq;
             counter = 0;
             time_ms = new_time;
-            printf("Measured %10.2f fps.\n", fps);
-        }
-        vkWaitForFences(r->device, 1, &r->in_flight_fence, VK_TRUE, UINT64_MAX);
-        vkResetFences(r->device, 1, &r->in_flight_fence);
-        
-        if (!calculate_path(path))
-        {
-            return;
+            printf("Measured %10.2f fps. | zoom=2^%10.1f | depth: %8.2f%% | skip %8.2f%%\n", fps, -params.zoom_e - log2(params.zoom_m), path->current_depth * 100.0 / MAX_PATH_LENGTH, path->skip_steps * 100.0 / path->current_depth);
         }
         
         uint32_t image_index = 0;
@@ -1427,15 +1459,6 @@ void render_image(struct render *r, struct path_data *path)
         vkCmdBindDescriptorSets(r->cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, 
                                 r->pipeline_layout, 0, 1, &current_set, 0, NULL);
 
-
-
-        struct push_constant_parameter params;
-        params.time = (float)SDL_GetTicks() / 1000.0f;
-        params._1_zoom = 0.25 / (params.time);
-        params.anchor_points = path->points_count;
-        params.path_length = path->path_length;
-        params.center[0] = 0.5;
-        params.center[1] = 0.5;
 
         vkCmdPushConstants(r->cmd_buffer, r->pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(struct push_constant_parameter), &params);
 
@@ -1576,10 +1599,29 @@ void render_image(struct render *r, struct path_data *path)
                 {
                     return;
                 }
+                else if (e.type == SDL_EVENT_MOUSE_WHEEL) 
+                {   
+                    dz -= e.wheel.y * 0.01;
+                }
             }
+
+            int numkeys;
+            const bool *state = SDL_GetKeyboardState(&numkeys);
+            dx = dy = 0.0;
+            if (state[SDL_SCANCODE_UP])  { dy = -5.0; }
+            if (state[SDL_SCANCODE_DOWN])  { dy = +5.0; }
+            if (state[SDL_SCANCODE_LEFT])  { dx = -5.0; }
+            if (state[SDL_SCANCODE_RIGHT])  { dx = +5.0; }
+
+
+            dz = (0.05 + dz * 0.95);
+
+            update_zoom(path, dz, dx, dy);
         }
         else
         {
+            update_zoom(path, path->zoom_step, 0.0, 0.0);
+        
             vkWaitForFences(r->device, 1, &r->in_flight_fence, VK_TRUE, UINT64_MAX);
             save_to_file(r);
         }
