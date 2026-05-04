@@ -1215,9 +1215,12 @@ int init_video(struct render *r)
     r->enc_ctx->max_b_frames = 0;
     
     r->enc_ctx->pix_fmt = AV_PIX_FMT_NV12; 
-    r->enc_ctx->bit_rate = 15000000;
-
-    av_opt_set(r->enc_ctx->priv_data, "preset", "veryfast", 0);
+    
+    // r->enc_ctx->bit_rate = 15000000;
+    av_opt_set(r->enc_ctx->priv_data, "preset", "slow", 0);
+    // av_opt_set(r->enc_ctx->priv_data, "crf", "17", 0); 
+    r->enc_ctx->global_quality = 17; 
+    av_opt_set(r->enc_ctx->priv_data, "global_quality", "17", 0);
     av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
     r->enc_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
@@ -1235,7 +1238,7 @@ int init_video(struct render *r)
     r->sws_ctx = sws_getContext(
         r->config.w, r->config.h, AV_PIX_FMT_RGBA,
         r->config.w, r->config.h, r->enc_ctx->pix_fmt,
-        SWS_FAST_BILINEAR, NULL, NULL, NULL
+        SWS_BICUBIC, NULL, NULL, NULL
     );
 
     r->frame = av_frame_alloc();
