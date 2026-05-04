@@ -126,7 +126,7 @@ int64_t lli_get_base_bits(int64_t bits, int64_t num_free_multiplications, int64_
         uint64_t item_bits = 0;
         for (uint64_t i = 1ull; i < 53ull; ++i)
         {
-            if ((bits/i + 1ull) * (1ull<<(i * T)) > (1ull<<52ull))
+            if ((bits/i + 1ull) * (1ull<<(i * (T+1))) > (1ull<<52ull))
             {
                 item_bits = i - 1;
                 break;
@@ -157,7 +157,7 @@ struct lli *_lli_create(int64_t length, int64_t base_bits, int64_t flags, struct
     data->sign = (value > 0 ? LLI_SIGN_POS : LLI_SIGN_NEG);
     if (flags & LLI_CREATE_OPTIMIZE_MULTIPLICATION)
     {
-        while (length * (1ull<<(base_bits*data->max_ops_cnt)) <= (1ull<<52ull))
+        while (length * (1ull<<(base_bits*(data->max_ops_cnt+1))) <= (1ull<<52ull))
         {
             data->max_ops_cnt++;
         }

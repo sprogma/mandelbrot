@@ -181,7 +181,7 @@ brainrot.exe -l # to see fps/current zoom/other information
 
     struct path_data data = {};
     data.total_images = 60 * config.i_zoom_time;
-    data.zoom_step = 0.99;
+    data.zoom_step = 0.98;
 
     /*
         interesting points
@@ -194,7 +194,7 @@ brainrot.exe -l # to see fps/current zoom/other information
         0.0017389
     */
 
-    init_path(&data, 1.0, -0.743643887037158, 0.131825904206411);
+    init_path(&data, 1e-2, -0.743643887037158, 0.131825904206411);
 
     optimize_depth(data.center[0], data.center[1], 60, true);
     

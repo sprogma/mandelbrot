@@ -389,11 +389,21 @@ DWORD depth_searcher(void *params)
                     lli_mul(z, tmp[0], 0);
                     lli_adam(z, BITS_EXP);
                 }
-                else
+                else if (tt < 50)
                 {
                     lli_load_double(tmp[0], 0.5 * (tt - 19) * (tt - 19), BITS_EXP);
                     lli_mul(z, tmp[0], 0);
                     lli_adam(z, BITS_EXP);
+                }
+                else
+                {
+                    lli_load_double(tmp[0], 0.5 * (tt - 40) * (tt - 40) * (tt - 40), BITS_EXP);
+                    lli_mul(z, tmp[0], 0);
+                    lli_adam(z, BITS_EXP);
+                    if (tt > 200)
+                    {
+                        tt = 0;
+                    }
                 }
 
                 if (rand() % 10 == 0)
@@ -406,7 +416,7 @@ DWORD depth_searcher(void *params)
         ReleaseSRWLockExclusive(&info->lock);
 
         /* adjust zoom */
-        lli_load_double(tmp[0], sqrt((double)rand() / RAND_MAX) * 0.9 + 0.1, BITS_EXP);
+        lli_load_double(tmp[0], sqrt((double)rand() / RAND_MAX) * 0.3 + 0.7, BITS_EXP);
         lli_mul(z, tmp[0], 0);
         lli_adam(z, BITS_EXP);
 

@@ -1356,6 +1356,9 @@ void render_image(struct render *r, struct path_data *path)
     double dz = 1.0;
     double dx = 0.0;
     double dy = 0.0;
+
+    int64_t start = SDL_GetTicks();
+    // double speed = 0.0;
     
     while (1)
     {
@@ -1379,7 +1382,11 @@ void render_image(struct render *r, struct path_data *path)
             double fps = counter / ((double)(new_time - time_ms)) * ffreq;
             counter = 0;
             time_ms = new_time;
-            printf("Measured %10.2f fps. | zoom=2^%10.1f | depth: %8.2f%% | skip %8.2f%%\n", fps, -params.zoom_e - log2(params.zoom_m), path->current_depth * 100.0 / MAX_PATH_LENGTH, path->skip_steps * 100.0 / path->current_depth);
+            double used_time = (SDL_GetTicks() - start) * 0.001;
+            // double used_percent = (double)path->current_image / (double)path->total_images;
+            // double current_speed
+            double remain = used_time * ((double)path->total_images / (double)path->current_image - 1.0);
+            printf("Measured %10.2f fps. | zoom=2^%10.1f | depth: %8.2f%% | skip %8.2f%% | remain %10.1f s. \n", fps, -params.zoom_e - log2(params.zoom_m), path->current_depth * 100.0 / MAX_PATH_LENGTH, path->skip_steps * 100.0 / path->current_depth, remain);
         }
         
         uint32_t image_index = 0;
