@@ -91,6 +91,7 @@ int main(int argc, const char **argv)
         .h = 1080,
         .device_id = -1,
         .fps = 60,
+        .starting_serach_time = 60,
     };
     for (int i = 1; i < argc; ++i)
     {
@@ -103,10 +104,12 @@ use -o filename to write video to file
 use -s X to select intial zoom [power of 10]
 use -e X to select destination zoov [power of 10]
 use -t X to select zooming time [seconds]
+use -st X to select serach waiting time
 use -z X to select zooming per second [power of 10]
 use -l   to enable showing/logging information
 use -r X Y to select resolution in pixels.
 use -d X to select device by d.
+use -f X to select fps.
 use -f64 to enable float64.
 use -ae to enable accelerated video encoding (if supported by device).
 
@@ -116,6 +119,8 @@ if you don't used -e:
     if you don't used -t, zooming will be infinite.
     
 if you don't used -s, initial zoom will be 1.0 [equal to -s 0.0]
+
+default fps is 60
 
 default resolution is 1920/1080
 
@@ -154,6 +159,11 @@ brainrot.exe -l # to see fps/current zoom/other information
             if (i + 1 >= argc) { printf("-t parameter needs number after it.\n"); return 1; }
             config.i_zoom_time = normal_strtod(argv[++i], "-t");
         }
+        else if (strcmp(argv[i], "-st") == 0)
+        {
+            if (i + 1 >= argc) { printf("-st parameter needs number after it.\n"); return 1; }
+            config.starting_serach_time = normal_strtod(argv[++i], "-st");
+        }
         else if (strcmp(argv[i], "-r") == 0)
         {
             if (i + 2 >= argc) { printf("-r parameter needs two number after it.\n"); return 1; }
@@ -164,6 +174,11 @@ brainrot.exe -l # to see fps/current zoom/other information
         {
             if (i + 1 >= argc) { printf("-d parameter needs number after it.\n"); return 1; }
             config.device_id = normal_strtod(argv[++i], "-d");
+        }
+        else if (strcmp(argv[i], "-f") == 0)
+        {
+            if (i + 1 >= argc) { printf("-f parameter needs number after it.\n"); return 1; }
+            config.fps = normal_strtod(argv[++i], "-f");
         }
         else if (strcmp(argv[i], "-l") == 0)
         {
@@ -180,7 +195,7 @@ brainrot.exe -l # to see fps/current zoom/other information
     }
 
     struct path_data data = {};
-    data.total_images = 60 * config.i_zoom_time;
+    data.total_images = config.fps * config.i_zoom_time;
     data.zoom_step = 0.98;
 
     /*
@@ -196,7 +211,7 @@ brainrot.exe -l # to see fps/current zoom/other information
 
     init_path(&data, 1e-2, -0.743643887037158, 0.131825904206411);
 
-    optimize_depth(data.center[0], data.center[1], 60, true);
+    optimize_depth(data.center[0], data.center[1], config.starting_serach_time, true);
     
     auto render = init_render(&config);
     render_image(render, &data);

@@ -21,6 +21,7 @@ struct render_config
     int64_t w, h;
     int32_t device_id;
     int64_t fps;
+    double starting_serach_time;
 };
 
 

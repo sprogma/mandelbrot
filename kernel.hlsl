@@ -142,7 +142,10 @@ void main(uint3 dtid : SV_DispatchThreadID)
             break;
         }
     }
-    destImage[dtid.xy] = data;
 
+
+    // !!! dest image is BGR0 if render is to file, and RGBA if to screen
+    
+    destImage[dtid.xy] = data;
 }
 

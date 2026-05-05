@@ -128,6 +128,8 @@ void llf_mul_double(struct llf *res, struct llf *a, double val, struct path_data
 
 int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, float *out_center_x, float *out_center_y)
 {
+    data->moditified = data->current_image == 0;
+    
     /* select points count based on scale */
     data->points_count = 1;
     /* select path_length based on scale */
@@ -183,6 +185,8 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
         // printf("start: %f %f\n", buffer[0][0], buffer[0][1]);
         for (int64_t i = data->calculated_depth[p]; i < data->path_length; ++i)
         {
+            data->moditified = true;
+            
             // printf("%lld/%lld\n", i, data->path_length);
             buffer[i+1][0] = lli_as_double(data->tmp[2], data->bit_exp);
             buffer[i+1][1] = lli_as_double(data->tmp[3], data->bit_exp); // [1..] = path
@@ -241,6 +245,13 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
 
 int64_t get_depth(struct lli *x, struct lli *y, struct lli *tmp[8], int64_t bit_exp)
 {
+    double dx = lli_as_double(x, bit_exp);
+    double dy = lli_as_double(y, bit_exp);
+    double y2 = dy * dy;
+    double q = (dx - 0.25) * (dx - 0.25) + y2;
+    if (q * (q + (dx - 0.25)) < 0.25 * y2) return 0;
+    if ((dx + 1.0) * (dx + 1.0) + y2 < 0.0625) return 0;
+    
     lli_copy(tmp[0], x);
     lli_copy(tmp[1], y);
     // zr, zi

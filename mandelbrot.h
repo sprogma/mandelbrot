@@ -41,6 +41,8 @@ struct path_data
     struct llf bBn_re, bBn_im;
     int64_t skip_steps;
     struct llf btmp[8];
+
+    bool moditified;
 };
 
 int init_path(struct path_data *data, double start_zoom, double start_x, double start_y);

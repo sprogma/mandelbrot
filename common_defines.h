@@ -9,8 +9,9 @@
 #define WORK_GROUP_SIZE_X 8
 #define WORK_GROUP_SIZE_Y 8
 
-#define MAX_POINTS_COUNT 16
-#define MAX_PATH_LENGTH (1024*32)
+#define MAX_POINTS_COUNT 1
+// #define MAX_PATH_LENGTH (1024*32)
+#define MAX_PATH_LENGTH (1024*8)
 
 // not used
 // base: 4.0
