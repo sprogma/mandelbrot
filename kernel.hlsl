@@ -2,15 +2,13 @@ struct FloatExp
 {
     float m; 
     int e;
-
+    
     void normalize() 
     {
         if (m == 0.0) { e = 0; return; }
-        uint bits = asuint(m);
-        int real_e = (int)((bits >> 23) & 0xFF) - 127;
+        int real_e;
+        m = frexp(m, real_e);
         e += real_e;
-        bits = (bits & 0x807FFFFFu) | (127u << 23);
-        m = asfloat(bits);
     }
 
     static FloatExp create(float val, int exp) 
@@ -25,20 +23,17 @@ struct FloatExp
         FloatExp res;
         res.m = this.m * other.m;
         res.e = this.e + other.e;
-        res.normalize();
+        // res.normalize(); // it will be normalized after addition.
         return res;
     }
 
     FloatExp operator+(FloatExp other) 
     {
-        if (abs(m) < 1e-10) return other;
-        if (abs(other.m) < 1e-10) return this;
         FloatExp res;
         int diff = e - other.e;
-        if (diff > 25) return this;
-        if (diff < -25) return other;
-        if (diff >= 0) { res.m = m + other.m * pow(2.0, -diff); res.e = e; }
-        else { res.m = other.m + m * pow(2.0, diff); res.e = other.e; }
+        if (diff >= 0) { res.m = m + ldexp(other.m, -diff); res.e = e; } 
+        else { res.m = other.m + ldexp(m, diff); res.e = other.e;}
+
         res.normalize();
         return res;
     }
@@ -131,8 +126,9 @@ void main(uint3 dtid : SV_DispatchThreadID)
 
         if (dt.x.e > 2 || dt.y.e > 2) 
         {
-            float re = input_zb.x + (dt.x.m * pow(2.0, dt.x.e));
-            float im = input_zb.y + (dt.y.m * pow(2.0, dt.y.e));
+            float re = input_zb.x + ldexp(dt.x.m, dt.x.e);
+            float im = input_zb.y + ldexp(dt.y.m, dt.y.e);
+            
             float d = re*re + im*im;
 
             float tt = log2(log2(max(d, 1.0)) * 0.5); 

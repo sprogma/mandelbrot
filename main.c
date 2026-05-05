@@ -92,6 +92,7 @@ int main(int argc, const char **argv)
         .device_id = -1,
         .fps = 60,
         .starting_serach_time = 60,
+        .video_preset = 0,
     };
     for (int i = 1; i < argc; ++i)
     {
@@ -110,8 +111,10 @@ use -l   to enable showing/logging information
 use -r X Y to select resolution in pixels.
 use -d X to select device by d.
 use -f X to select fps.
+use -p X to select preset [0-5] [fast-small].
 use -f64 to enable float64.
 use -ae to enable accelerated video encoding (if supported by device).
+use -c X Y [doubles] to select starting point. It will be still updated to find more deep image, but changes will be not big (near ~0.01 in distance)
 
 if you used -e:
     you can't use both -t and -z
@@ -164,21 +167,38 @@ brainrot.exe -l # to see fps/current zoom/other information
             if (i + 1 >= argc) { printf("-st parameter needs number after it.\n"); return 1; }
             config.starting_serach_time = normal_strtod(argv[++i], "-st");
         }
+        else if (strcmp(argv[i], "-c") == 0)
+        {
+            if (i + 2 >= argc) { printf("-c parameter needs 2 numbers after it.\n"); return 1; }
+            config.start_x = normal_strtod(argv[++i], "-c");
+            config.start_y = normal_strtod(argv[++i], "-c");
+            config.have_staring_point = true;
+        }
         else if (strcmp(argv[i], "-r") == 0)
         {
             if (i + 2 >= argc) { printf("-r parameter needs two number after it.\n"); return 1; }
-            config.w = normal_strtod(argv[++i], "-r");
-            config.h = normal_strtod(argv[++i], "-r");
+            config.w = normal_strtoll(argv[++i], "-r");
+            config.h = normal_strtoll(argv[++i], "-r");
         }
         else if (strcmp(argv[i], "-d") == 0)
         {
             if (i + 1 >= argc) { printf("-d parameter needs number after it.\n"); return 1; }
-            config.device_id = normal_strtod(argv[++i], "-d");
+            config.device_id = normal_strtoll(argv[++i], "-d");
         }
         else if (strcmp(argv[i], "-f") == 0)
         {
             if (i + 1 >= argc) { printf("-f parameter needs number after it.\n"); return 1; }
-            config.fps = normal_strtod(argv[++i], "-f");
+            config.fps = normal_strtoll(argv[++i], "-f");
+        }
+        else if (strcmp(argv[i], "-p") == 0)
+        {
+            if (i + 1 >= argc) { printf("-p parameter needs number after it.\n"); return 1; }
+            config.video_preset = normal_strtoll(argv[++i], "-p");
+            if (config.video_preset < 0 || config.video_preset > 5)
+            {
+                printf("Error: wrong preset: %lld. Must be from 0 [optimal speed, big size] to 5 [optimal size, unknown speed and quality].\n", config.video_preset);
+                return 1;
+            }
         }
         else if (strcmp(argv[i], "-l") == 0)
         {
@@ -211,7 +231,7 @@ brainrot.exe -l # to see fps/current zoom/other information
 
     init_path(&data, 1e-2, -0.743643887037158, 0.131825904206411);
 
-    optimize_depth(data.center[0], data.center[1], config.starting_serach_time, true);
+    optimize_depth(data.center[0], data.center[1], config.starting_serach_time, !config.have_staring_point);
     
     auto render = init_render(&config);
     render_image(render, &data);

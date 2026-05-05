@@ -22,6 +22,10 @@ struct render_config
     int32_t device_id;
     int64_t fps;
     double starting_serach_time;
+    int64_t video_preset;
+    bool have_staring_point;
+    double start_x;
+    double start_y;
 };
 
 

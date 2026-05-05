@@ -380,7 +380,7 @@ DWORD depth_searcher(void *params)
 
                 if (!info->ignore_starting_point)
                 {
-                    lli_load_double(z, 0.05, BITS_EXP);
+                    lli_load_double(z, 0.01, BITS_EXP);
                 }
                 else
                 {
@@ -417,10 +417,15 @@ DWORD depth_searcher(void *params)
                     }
                 }
 
-                if (rand() % 10 == 0)
+                if (rand() % 10 == 0 && bbest < 3000)
                 {
                     lli_load_double(tmp[0], 0.00001, BITS_EXP);
                     lli_add(z, tmp[0], 0);
+                }
+
+                if (!info->ignore_starting_point && lli_as_double(z, BITS_EXP) > 0.01)
+                {
+                    lli_load_double(z, 0.01, BITS_EXP);
                 }
             }
         }

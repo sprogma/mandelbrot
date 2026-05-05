@@ -1270,11 +1270,45 @@ int init_video(struct render *r)
     r->enc_ctx->pix_fmt = AV_PIX_FMT_BGR0; 
     
     // r->enc_ctx->bit_rate = 15000000;
-    av_opt_set(r->enc_ctx->priv_data, "preset", "ultrafast", 0);
-    av_opt_set(r->enc_ctx->priv_data, "crf", "17", 0);
-    r->enc_ctx->global_quality = 17; 
-    av_opt_set(r->enc_ctx->priv_data, "global_quality", "17", 0);
-    av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    if (r->config.video_preset == 0)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "ultrafast", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "17", 0);
+        r->enc_ctx->global_quality = 17; 
+        av_opt_set(r->enc_ctx->priv_data, "global_quality", "17", 0);
+        av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    }
+    else if (r->config.video_preset == 1)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "superfast", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "18", 0);
+        av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    }
+    else if (r->config.video_preset == 2)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "veryfast", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "20", 0);
+        av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    }
+    else if (r->config.video_preset == 3)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "faster", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "21", 0);
+        av_opt_set(r->enc_ctx->priv_data, "tune", "zerolatency", 0);
+    }
+    else if (r->config.video_preset == 4)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "fast", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "22", 0);
+    }
+    else if (r->config.video_preset == 5)
+    {
+        av_opt_set(r->enc_ctx->priv_data, "preset", "medium", 0);
+        av_opt_set(r->enc_ctx->priv_data, "crf", "23", 0);
+        r->enc_ctx->max_b_frames = 2;
+    }
+
+
     r->enc_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
     if (avcodec_open2(r->enc_ctx, codec, NULL) < 0) 
@@ -1482,6 +1516,7 @@ int encoder_worker(void *ptr)
                 fprintf(stderr, "Write error: %s\n", errbuf);
                 av_packet_unref(r->pkt);
                 r->encode_error = true;
+                r->encode_running = false;
                 break;
             }
             av_packet_unref(r->pkt);
