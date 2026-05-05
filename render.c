@@ -47,15 +47,18 @@ struct push_constant_parameter
 };
 
 #define MAX_FRAMES_IN_FLIGHT 3
-#define ENCODE_QUEUE_SIZE 3
+#define ENCODE_QUEUE_SIZE MAX_FRAMES_IN_FLIGHT
 
 struct encode_job 
 {
     AVFrame *frame;
     int64_t pts;
+    int buffer_index;
 };
 
+
 int encoder_worker(void *ptr);
+int callback_worker(void *ptr);
 
 
 
@@ -122,7 +125,7 @@ struct render
     AVCodecContext *enc_ctx;
     AVFormatContext *fmt_ctx;
     AVStream *video_st;
-    AVFrame *frame;
+    AVFrame *encode_frames[MAX_FRAMES_IN_FLIGHT];
     AVPacket *pkt;
     struct SwsContext *sws_ctx;
     int64_t frame_count;
@@ -137,7 +140,14 @@ struct render
     SDL_Mutex *encode_mutex;
     SDL_Condition *encode_cond;
     SDL_Thread *encode_thread;
-    bool encode_running;
+    _Atomic bool encode_running;
+    
+    SDL_Semaphore *buffer_free_sem[MAX_FRAMES_IN_FLIGHT];
+    bool encode_error; 
+
+    _Atomic int64_t frames_rendered_count;
+    _Atomic int64_t frames_sent;
+    SDL_Thread *callback_thread;
 };
 
 
@@ -1208,7 +1218,7 @@ int init_syncs(struct render *r)
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     vkCreateFence(r->device, &fenceInfo, NULL, &r->render_fence);
 
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    fenceInfo.flags = 0;
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
     {
         vkCreateFence(r->device, &fenceInfo, NULL, &r->in_flight_fences[i]);
@@ -1279,11 +1289,15 @@ int init_video(struct render *r)
     r->video_st->time_base = r->enc_ctx->time_base;
     r->video_st->avg_frame_rate = r->enc_ctx->framerate;
 
-    r->frame = av_frame_alloc();
-    r->frame->format = r->enc_ctx->pix_fmt;
-    r->frame->width  = r->enc_ctx->width;
-    r->frame->height = r->enc_ctx->height;
-    if (av_frame_get_buffer(r->frame, 0) < 0) return 1;
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        r->encode_frames[i] = av_frame_alloc();
+        if (!r->encode_frames[i]) return 1;
+        r->encode_frames[i]->format = r->enc_ctx->pix_fmt;
+        r->encode_frames[i]->width  = r->enc_ctx->width;
+        r->encode_frames[i]->height = r->enc_ctx->height;
+        r->buffer_free_sem[i] = SDL_CreateSemaphore(1);
+    }
 
     r->pkt = av_packet_alloc();
 
@@ -1303,6 +1317,8 @@ int init_video(struct render *r)
     r->encode_cond = SDL_CreateCondition();
     r->encode_running = true;
     r->encode_thread = SDL_CreateThread(encoder_worker, "encode", r);
+    r->frames_rendered_count = 0;
+    r->callback_thread = SDL_CreateThread(callback_worker, "callback", r);
 
     return 0;
 }
@@ -1314,6 +1330,7 @@ struct render *init_render(const struct render_config *config)
     struct render *r = calloc(1, sizeof(*r));
     
     r->config = *config;
+    r->frames_sent = 0;
 
     RETFROM(init_window(r));
     RETFROM(init_instance(r));
@@ -1344,9 +1361,86 @@ struct render *init_render(const struct render_config *config)
 }
 
 
+
+int save_to_file(struct render *r, int buf_index)
+{
+    AVFrame *frame = r->encode_frames[buf_index];
+
+    frame->data[0] = r->download_memory_mappings[buf_index];
+    frame->linesize[0] = r->config.w * 4;
+
+    if (frame->buf[0])
+    {
+        av_buffer_unref(&frame->buf[0]);
+    }
+
+    frame->pts = r->frame_count++;
+
+    struct encode_job job = { frame, frame->pts, buf_index };
+
+    SDL_LockMutex(r->encode_mutex);
+    int next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
+    while (next == r->encode_queue_read && r->encode_running && !r->encode_error) 
+    {
+        SDL_WaitCondition(r->encode_cond, r->encode_mutex);
+        next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
+    }
+
+    if (r->encode_error) 
+    {
+        SDL_UnlockMutex(r->encode_mutex);
+        return -1;
+    }
+    
+    r->encode_queue[r->encode_queue_write] = job;
+    r->encode_queue_write = next;
+    SDL_SignalCondition(r->encode_cond);
+    SDL_UnlockMutex(r->encode_mutex);
+
+    return 0;
+}
+
+
+
+int callback_worker(void *ptr) 
+{
+    struct render *r = (struct render *)ptr;
+
+    r->frames_rendered_count = 0;
+    const uint64_t timeout_ns = 100000000; // 100 ms;
+    while (r->encode_thread)
+    {        
+        int64_t i = r->frames_rendered_count % MAX_FRAMES_IN_FLIGHT;
+        while (r->encode_thread)
+        {
+            VkResult result = vkWaitForFences(r->device, 1, &r->in_flight_fences[i], VK_TRUE, timeout_ns);
+            if (result == VK_TIMEOUT) 
+            {
+                continue; 
+            } 
+            else if (result != VK_SUCCESS) 
+            {
+                printf("Vulkan waitForFences error: %d\n", result);
+                return 1;
+            }
+            break;
+        }
+        if (!r->encode_running)
+        {
+            break;
+        }
+        save_to_file(r, i);
+        vkResetFences(r->device, 1, &r->in_flight_fences[i]);
+
+        r->frames_rendered_count++;
+    }
+
+    return 0;
+}
+
 int encoder_worker(void *ptr) 
 {
-    struct render *r = (struct render*)ptr;
+    struct render *r = (struct render *)ptr;
     while (1) 
     {
         SDL_LockMutex(r->encode_mutex);
@@ -1371,88 +1465,32 @@ int encoder_worker(void *ptr)
             char errbuf[AV_ERROR_MAX_STRING_SIZE];
             av_strerror(ret, errbuf, sizeof(errbuf));
             fprintf(stderr, "Send frame error: %s\n", errbuf);
-            av_frame_free(&job.frame);
+            SDL_SignalSemaphore(r->buffer_free_sem[job.buffer_index]);
             continue;
         }
-        while (ret >= 0) {
+        while (ret >= 0) 
+        {
             ret = avcodec_receive_packet(r->enc_ctx, r->pkt);
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
 
             r->pkt->stream_index = r->video_st->index;
             av_packet_rescale_ts(r->pkt, r->enc_ctx->time_base, r->video_st->time_base);
             int ret_write = av_interleaved_write_frame(r->fmt_ctx, r->pkt);
-            if (ret_write < 0) {
+            if (ret_write < 0) 
+            {
                 char errbuf[AV_ERROR_MAX_STRING_SIZE];
                 av_strerror(ret_write, errbuf, sizeof(errbuf));
                 fprintf(stderr, "Write error: %s\n", errbuf);
                 av_packet_unref(r->pkt);
+                r->encode_error = true;
                 break;
             }
-
             av_packet_unref(r->pkt);
         }
-        av_frame_free(&job.frame);
+        SDL_SignalSemaphore(r->buffer_free_sem[job.buffer_index]);
     }
     return 0;
 }
-
-
-
-
-int save_to_file(struct render *r, int buf_index)
-{
-    AVFrame *frame = av_frame_alloc();
-    frame->format = r->enc_ctx->pix_fmt;
-    frame->width  = r->enc_ctx->width;
-    frame->height = r->enc_ctx->height;
-    av_frame_get_buffer(frame, 0);
-
-    void *src_data = r->download_memory_mappings[buf_index];
-
-    if (r->sws_ctx == NULL) 
-    {
-        int pixel_bytes = 4;
-        if (frame->linesize[0] == r->config.w * pixel_bytes) 
-        {
-            memcpy(frame->data[0], src_data, r->config.w * r->config.h * pixel_bytes);
-        } 
-        else 
-        {
-            uint8_t* src = (uint8_t*)src_data;
-            uint8_t* dst = frame->data[0];
-            for (int y = 0; y < r->config.h; y++) 
-            {
-                memcpy(dst, src, r->config.w * pixel_bytes);
-                src += r->config.w * pixel_bytes;
-                dst += frame->linesize[0];
-            }
-        }
-    } 
-    else 
-    {
-        const uint8_t* src_slices[] = { (uint8_t*)src_data };
-        int src_strides[] = { r->config.w * 4 };
-        sws_scale(r->sws_ctx, src_slices, src_strides, 0, r->config.h,
-                  frame->data, frame->linesize);
-    }
-
-    frame->pts = r->frame_count++;
-
-    SDL_LockMutex(r->encode_mutex);
-    int next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
-    while (next == r->encode_queue_read) 
-    {
-        SDL_WaitCondition(r->encode_cond, r->encode_mutex);
-        next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
-    }
-    r->encode_queue[r->encode_queue_write] = (struct encode_job){frame, frame->pts};
-    r->encode_queue_write = next;
-    SDL_SignalCondition(r->encode_cond);
-    SDL_UnlockMutex(r->encode_mutex);
-
-    return 0;
-}
-
 
 
 void render_image(struct render *r, struct path_data *path)
@@ -1468,6 +1506,8 @@ void render_image(struct render *r, struct path_data *path)
     double dz = 1.0;
     double dx = 0.0;
     double dy = 0.0;
+
+    r->frames_sent = 0;
 
     #define SPEEDS_PROBES 4
     double speeds[SPEEDS_PROBES] = {}, prev_zoom_e = 0.0;
@@ -1510,22 +1550,17 @@ void render_image(struct render *r, struct path_data *path)
                 {
                     printf("Waring: Can't delete file ./stop_now.\n");
                 }
+                r->frames_sent -= MAX_FRAMES_IN_FLIGHT;
                 break;
             }
         }
         
         if (r->config.output_filename)
         {
-            uint32_t prev_i = (r->current_frame+MAX_FRAMES_IN_FLIGHT-1) % MAX_FRAMES_IN_FLIGHT;
             uint32_t i = r->current_frame % MAX_FRAMES_IN_FLIGHT;
 
-            vkWaitForFences(r->device, 1, &r->in_flight_fences[prev_i], VK_TRUE, UINT64_MAX);
-            vkResetFences(r->device, 1, &r->in_flight_fences[prev_i]);
-
-            if (r->current_frame > 0) 
-            {
-                save_to_file(r, prev_i);
-            } 
+            SDL_WaitSemaphore(r->buffer_free_sem[i]);
+            
             update_zoom(path, path->zoom_step, 0.0, 0.0);
             
             struct push_constant_parameter params;
@@ -1643,6 +1678,8 @@ void render_image(struct render *r, struct path_data *path)
             submitInfo.pCommandBuffers = &r->cmd_buffers[i];
 
             vkQueueSubmit(r->queue, 1, &submitInfo, r->in_flight_fences[i]);
+
+            r->frames_sent++;
 
             r->current_frame++;
         }
@@ -1831,6 +1868,26 @@ void render_image(struct render *r, struct path_data *path)
             update_zoom(path, dz, dx, dy);
         }
     }
+
+    if (r->config.output_filename)
+    {
+        /* wait for frames_rendered_count to be N images */
+        printf("%lld vs %lld\n", r->frames_rendered_count, r->frames_sent);
+        while (r->frames_rendered_count < r->frames_sent)
+        {
+            printf("%lld vs %lld\n", r->frames_rendered_count, r->frames_sent);
+            SDL_Delay(10); // wait for callback_thread
+        }
+    
+        for (uint32_t tail = 0; tail < MAX_FRAMES_IN_FLIGHT - 1 && tail < path->total_images; ++tail) 
+        {
+            uint32_t i = r->current_frame % MAX_FRAMES_IN_FLIGHT;
+            vkWaitForFences(r->device, 1, &r->in_flight_fences[i], VK_TRUE, UINT64_MAX);
+            save_to_file(r, i);
+            vkResetFences(r->device, 1, &r->in_flight_fences[i]);
+            r->current_frame++;
+        }
+    }
 }
 
 void close_video(struct render *r) 
@@ -1842,6 +1899,7 @@ void close_video(struct render *r)
     SDL_SignalCondition(r->encode_cond);
     SDL_UnlockMutex(r->encode_mutex);
     SDL_WaitThread(r->encode_thread, NULL);
+    SDL_WaitThread(r->callback_thread, NULL);
 
     SDL_DestroyMutex(r->encode_mutex);
     SDL_DestroyCondition(r->encode_cond);
@@ -1865,7 +1923,21 @@ void close_video(struct render *r)
         avio_closep(&r->fmt_ctx->pb);
     }
     avcodec_free_context(&r->enc_ctx);
-    av_frame_free(&r->frame);
+    
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        if (r->encode_frames[i]) 
+        {    
+            r->encode_frames[i]->data[0] = NULL;
+            r->encode_frames[i]->buf[0] = NULL;
+            av_frame_free(&r->encode_frames[i]);
+        }
+        if (r->buffer_free_sem[i]) 
+        {
+            SDL_DestroySemaphore(r->buffer_free_sem[i]);
+        }
+    }
+    
     av_packet_free(&r->pkt);
     avformat_free_context(r->fmt_ctx);
     sws_freeContext(r->sws_ctx);
