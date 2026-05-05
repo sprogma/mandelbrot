@@ -1408,10 +1408,10 @@ int callback_worker(void *ptr)
 
     r->frames_rendered_count = 0;
     const uint64_t timeout_ns = 100000000; // 100 ms;
-    while (r->encode_thread)
+    while (r->encode_running)
     {        
         int64_t i = r->frames_rendered_count % MAX_FRAMES_IN_FLIGHT;
-        while (r->encode_thread)
+        while (r->encode_running)
         {
             VkResult result = vkWaitForFences(r->device, 1, &r->in_flight_fences[i], VK_TRUE, timeout_ns);
             if (result == VK_TIMEOUT) 
@@ -1872,20 +1872,9 @@ void render_image(struct render *r, struct path_data *path)
     if (r->config.output_filename)
     {
         /* wait for frames_rendered_count to be N images */
-        printf("%lld vs %lld\n", r->frames_rendered_count, r->frames_sent);
         while (r->frames_rendered_count < r->frames_sent)
         {
-            printf("%lld vs %lld\n", r->frames_rendered_count, r->frames_sent);
             SDL_Delay(10); // wait for callback_thread
-        }
-    
-        for (uint32_t tail = 0; tail < MAX_FRAMES_IN_FLIGHT - 1 && tail < path->total_images; ++tail) 
-        {
-            uint32_t i = r->current_frame % MAX_FRAMES_IN_FLIGHT;
-            vkWaitForFences(r->device, 1, &r->in_flight_fences[i], VK_TRUE, UINT64_MAX);
-            save_to_file(r, i);
-            vkResetFences(r->device, 1, &r->in_flight_fences[i]);
-            r->current_frame++;
         }
     }
 }
