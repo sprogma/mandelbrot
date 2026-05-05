@@ -1366,7 +1366,11 @@ int encoder_worker(void *ptr)
         SDL_UnlockMutex(r->encode_mutex);
 
         int ret = avcodec_send_frame(r->enc_ctx, job.frame);
-        if (ret < 0) {
+        if (ret < 0) 
+        {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, sizeof(errbuf));
+            fprintf(stderr, "Send frame error: %s\n", errbuf);
             av_frame_free(&job.frame);
             continue;
         }
@@ -1376,7 +1380,15 @@ int encoder_worker(void *ptr)
 
             r->pkt->stream_index = r->video_st->index;
             av_packet_rescale_ts(r->pkt, r->enc_ctx->time_base, r->video_st->time_base);
-            av_interleaved_write_frame(r->fmt_ctx, r->pkt);
+            int ret_write = av_interleaved_write_frame(r->fmt_ctx, r->pkt);
+            if (ret_write < 0) {
+                char errbuf[AV_ERROR_MAX_STRING_SIZE];
+                av_strerror(ret_write, errbuf, sizeof(errbuf));
+                fprintf(stderr, "Write error: %s\n", errbuf);
+                av_packet_unref(r->pkt);
+                break;
+            }
+
             av_packet_unref(r->pkt);
         }
         av_frame_free(&job.frame);
@@ -1482,12 +1494,14 @@ void render_image(struct render *r, struct path_data *path)
             avg /= speeds_cnt;
 
             double remain = (path->total_images - path->current_image) / avg;
-            printf("Measured %10.2f fps. | zoom=2^%10.1f | depth: %8.2f%% | skip %8.2f%% | remain %10lld m. %5.1f s. \n", 
+            double rendered_time = path->current_image / (double)r->config.fps;
+            printf("Measured %8.2f fps. | zoom=2^%7.1f | depth: %6.2f%% | skip %6.2f%% | remain %4lld m. %5.1f s. | rendered: %.1f seconds. \n", 
             fps, 
             -prev_zoom_e, 
             path->current_depth * 100.0 / MAX_PATH_LENGTH, 
             path->skip_steps * 100.0 / path->current_depth, 
-            ((int64_t)remain)/60, fmod(remain, 60.0));
+            ((int64_t)remain)/60, fmod(remain, 60.0),
+            rendered_time);
 
             if (file_exists("./stop_now"))
             {
