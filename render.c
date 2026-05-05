@@ -46,8 +46,7 @@ struct push_constant_parameter
     float center[2];
 };
 
-#define MAX_FRAMES_IN_FLIGHT 3
-#define ENCODE_QUEUE_SIZE MAX_FRAMES_IN_FLIGHT
+#define MAX_FRAMES_IN_FLIGHT 4
 
 struct encode_job 
 {
@@ -134,7 +133,7 @@ struct render
     AVBufferRef *hw_frames_ctx;
     VkSemaphore render_sem;
 
-    struct encode_job encode_queue[ENCODE_QUEUE_SIZE];
+    struct encode_job encode_queue[MAX_FRAMES_IN_FLIGHT];
     int encode_queue_read;
     int encode_queue_write;
     SDL_Mutex *encode_mutex;
@@ -1379,11 +1378,11 @@ int save_to_file(struct render *r, int buf_index)
     struct encode_job job = { frame, frame->pts, buf_index };
 
     SDL_LockMutex(r->encode_mutex);
-    int next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
+    int next = (r->encode_queue_write + 1) % MAX_FRAMES_IN_FLIGHT;
     while (next == r->encode_queue_read && r->encode_running && !r->encode_error) 
     {
         SDL_WaitCondition(r->encode_cond, r->encode_mutex);
-        next = (r->encode_queue_write + 1) % ENCODE_QUEUE_SIZE;
+        next = (r->encode_queue_write + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     if (r->encode_error) 
@@ -1456,7 +1455,7 @@ int encoder_worker(void *ptr)
         }
 
         struct encode_job job = r->encode_queue[r->encode_queue_read];
-        r->encode_queue_read = (r->encode_queue_read + 1) % ENCODE_QUEUE_SIZE;
+        r->encode_queue_read = (r->encode_queue_read + 1) % MAX_FRAMES_IN_FLIGHT;
         SDL_UnlockMutex(r->encode_mutex);
 
         int ret = avcodec_send_frame(r->enc_ctx, job.frame);
