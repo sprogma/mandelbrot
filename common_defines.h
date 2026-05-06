@@ -11,7 +11,7 @@
 
 #define MAX_POINTS_COUNT 1
 // #define MAX_PATH_LENGTH (1024*32)
-#define MAX_PATH_LENGTH (1024*8)
+#define MAX_PATH_LENGTH (1024*16)
 
 // not used
 // base: 4.0

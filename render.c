@@ -1217,10 +1217,18 @@ int init_syncs(struct render *r)
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     vkCreateFence(r->device, &fenceInfo, NULL, &r->render_fence);
 
-    fenceInfo.flags = 0;
-    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    if (r->config.output_filename)
     {
-        vkCreateFence(r->device, &fenceInfo, NULL, &r->in_flight_fences[i]);
+        fenceInfo.flags = 0;
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+        {
+            vkCreateFence(r->device, &fenceInfo, NULL, &r->in_flight_fences[i]);
+        }
+    }
+    else
+    {
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        vkCreateFence(r->device, &fenceInfo, NULL, &r->in_flight_fences[0]);
     }
 
     VkSemaphoreCreateInfo semaphoreInfo = {};
@@ -1598,15 +1606,14 @@ void render_image(struct render *r, struct path_data *path)
             update_zoom(path, path->zoom_step, 0.0, 0.0);
             
             struct push_constant_parameter params;
-            params.time = path->time;
-            params.anchor_points = path->points_count;
-            params.path_length = path->path_length;
             if (!calculate_path(path, &params.zoom_m, &params.zoom_e,
                                 &params.center[0], &params.center[1]))
             {    
                 return;
             }
-
+            params.time = path->time;
+            params.anchor_points = path->points_count;
+            params.path_length = path->current_depth;
 
             prev_zoom_e = params.zoom_e + log2(params.zoom_m);
 
@@ -1724,13 +1731,15 @@ void render_image(struct render *r, struct path_data *path)
             vkResetFences(r->device, 1, &r->in_flight_fences[0]);
 
             struct push_constant_parameter params;
-            params.time = path->time;
-            params.anchor_points = path->points_count;
-            params.path_length = path->path_length;
             if (!calculate_path(path, &params.zoom_m, &params.zoom_e, &params.center[0], &params.center[1]))
             {
                 return;
             }
+            params.time = path->time;
+            params.anchor_points = path->points_count;
+            params.path_length = path->current_depth;
+
+            prev_zoom_e = params.zoom_e + log2(params.zoom_m);
             
             uint32_t image_index = 0;
 

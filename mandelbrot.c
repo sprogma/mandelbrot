@@ -191,9 +191,9 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
             buffer[i+1][0] = lli_as_double(data->tmp[2], data->bit_exp);
             buffer[i+1][1] = lli_as_double(data->tmp[3], data->bit_exp); // [1..] = path
 
-            if (fabs(buffer[i+1][0]) > 1000.0 || fabs(buffer[i+1][1]) > 1000.0)
+            if (fabs(buffer[i+1][0]) > 2000.0 || fabs(buffer[i+1][1]) > 2000.0)
             {
-                data->current_depth = i;
+                data->current_depth = i - 2;
                 break;
             }
 
@@ -230,7 +230,6 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
     }
 
     /* calculate zoom to be near 1.0 */
-
 
     *out_zoom_m = zoom_m;
     *out_zoom_e = zoom_e;

@@ -1,21 +1,24 @@
+
+
 struct FloatExp 
 {
     float m; 
     int e;
-    
-    void normalize() 
-    {
-        if (m == 0.0) { e = 0; return; }
-        int real_e;
-        m = frexp(m, real_e);
-        e += real_e;
-    }
 
     static FloatExp create(float val, int exp) 
     {
         FloatExp res; res.m = val; res.e = exp;
         res.normalize();
         return res;
+    }
+    
+    void normalize() 
+    {
+        if (m == 0.0) { e = 0; return; }
+        uint bits = asuint(m);
+        int real_e = (int)((bits >> 23) & 0xFFu) - 127;
+        m = asfloat((bits & 0x807FFFFFu) | 0x3F800000u);
+        e += real_e;
     }
 
     FloatExp operator*(FloatExp other) 
@@ -33,7 +36,6 @@ struct FloatExp
         int diff = e - other.e;
         if (diff >= 0) { res.m = m + ldexp(other.m, -diff); res.e = e; } 
         else { res.m = other.m + ldexp(m, diff); res.e = other.e;}
-
         res.normalize();
         return res;
     }
@@ -104,13 +106,40 @@ void main(uint3 dtid : SV_DispatchThreadID)
     dt.x = FloatExp::create(0, 0);
     dt.y = FloatExp::create(0, 0);
     
+    FloatExp2 ddt;
+    ddt.x = FloatExp::create(1.0, 0); 
+    ddt.y = FloatExp::create(0.0, 0);
+    
+    float log2_pixel = log2(params.zoom_m) + float(params.zoom_e);
+
+    int threshold_e = int(ceil(-log2_pixel)) + 9;
+
     for (uint i = 1; i < params.path_length; ++i) 
     {   
         float2 input_zb = pathBuffer[i];
-
         FloatExp2 zb;
         zb.x = FloatExp::create(input_zb.x, 0);
         zb.y = FloatExp::create(input_zb.y, 0);
+
+        FloatExp2 z_curr;
+        z_curr.x = zb.x + dt.x;
+        z_curr.y = zb.y + dt.y;
+
+        FloatExp ddt_next_x = (z_curr.x * ddt.x - z_curr.y * ddt.y);
+        FloatExp ddt_next_y = (z_curr.x * ddt.y + z_curr.y * ddt.x);
+        
+        ddt_next_x.e += 1; 
+        ddt_next_y.e += 1;
+        ddt.x = ddt_next_x + FloatExp::create(1.0, 0);
+        ddt.y = ddt_next_y;
+        ddt.x.normalize();
+        ddt.y.normalize();
+
+        if (ddt.x.e > threshold_e || ddt.y.e > threshold_e)
+        {
+            data = float4(0, 0, 0, 1);
+            break;
+        }
 
         FloatExp dtx2 = dt.x * dt.x;
         FloatExp dty2 = dt.y * dt.y;
@@ -123,22 +152,47 @@ void main(uint3 dtid : SV_DispatchThreadID)
 
         dt.x = next_dt_x;
         dt.y = next_dt_y;
+        
+        if (dt.x.e > 2 || dt.y.e > 2)
+        {        
+            FloatExp Zx = zb.x + dt.x;
+            FloatExp Zy = zb.y + dt.y;
 
-        if (dt.x.e > 2 || dt.y.e > 2) 
-        {
-            float re = input_zb.x + ldexp(dt.x.m, dt.x.e);
-            float im = input_zb.y + ldexp(dt.y.m, dt.y.e);
-            
-            float d = re*re + im*im;
+            FloatExp Zx2 = Zx * Zx;
+            FloatExp Zy2 = Zy * Zy;
+            FloatExp magSq = Zx2 + Zy2;
 
-            float tt = log2(log2(max(d, 1.0)) * 0.5); 
-            float t = float(i) + 1.0 - tt;
-            data.x = sin(t * 0.2);
-            data.y = cos(1.0 + t * 0.3);
+            float log2_Z = 0.5 * (log2(magSq.m) + float(magSq.e));
+
+            FloatExp dZx = ddt.x;
+            FloatExp dZy = ddt.y;
+
+            FloatExp dZx2 = dZx * dZx;
+            FloatExp dZy2 = dZy * dZy;
+            FloatExp dMagSq = dZx2 + dZy2;
+
+            float log2_dZ = 0.5 * (log2(dMagSq.m) + float(dMagSq.e));
+
+            const float LOG2_LN2 = -0.528771f;
+
+            float safe_logZ = max(log2_Z, 1e-10f);
+            float log2_lnZ = log2(safe_logZ) + LOG2_LN2;
+
+            float log2_dist = 1.0f + log2_Z + log2_lnZ - log2_dZ;
+
+            float alpha = clamp(exp2(log2_dist - log2_pixel), 0.0f, 1.0f);
+
+            float abs_z_safe = exp2(log2_Z);
+            float r2 = abs_z_safe * abs_z_safe;
+            float tt_smooth = log2(log2(max(r2, 1.0f)) * 0.5f);
+            float t_val = float(i) + 1.0f - tt_smooth;
+
+            data.x = sin(t_val * 0.2f) * alpha;
+            data.y = cos(1.0f + t_val * 0.3f) * alpha;
             break;
         }
-    }
 
+    }
 
     // !!! dest image is BGR0 if render is to file, and RGBA if to screen
     

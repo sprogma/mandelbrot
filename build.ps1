@@ -25,6 +25,5 @@ clang lli_test.c -o test.exe ($CFLAGS|?{$_ -notmatch "-O\d"}) || $(Write-Host "E
 ./test.exe || $(Write-Host "Error: tests failed" -Fore red; exit 1)
 
 $OPT = "-O3", "-all-resources-bound"
-
 dxc  -Wall -Wextra -spirv -T cs_6_0 -E main $OPT kernel.hlsl -Fo kernel.spv || $(Write-Host "Error: Shader don't compiled" -Fore red; exit 1)
 spirv-opt -O kernel.spv -o kernel_opt.spv
