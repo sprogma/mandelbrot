@@ -14,7 +14,7 @@ struct FloatExp
     
     void normalize() 
     {
-        if (m == 0.0) { e = 0; return; }
+        if (m == 0.0) { e = -10000; return; }
         uint bits = asuint(m);
         int real_e = (int)((bits >> 23) & 0xFFu) - 127;
         m = asfloat((bits & 0x807FFFFFu) | 0x3F800000u);
@@ -26,7 +26,7 @@ struct FloatExp
         FloatExp res;
         res.m = this.m * other.m;
         res.e = this.e + other.e;
-        // res.normalize(); // it will be normalized after addition.
+        res.normalize();
         return res;
     }
 
@@ -57,8 +57,6 @@ struct FloatExp2 {
         return res;
     }
 };
-
-
 
 
 

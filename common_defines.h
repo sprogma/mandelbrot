@@ -1,8 +1,11 @@
 #define ITEM_BITS 10
 
-#define BITS_EXP 512
+// for mandelbrot number
+#define BITS_EXP 16384
 #define BITS (BITS_EXP*2)
 
+
+// for taylor series
 #define BBITS_EXP 128
 #define BBITS (1024*2)
 
