@@ -2,7 +2,7 @@
 
 // for mandelbrot number
 #define BITS_EXP (BITS-64)
-#define BITS (4*1024)
+#define BITS (16*1024)
 
 
 // for taylor series

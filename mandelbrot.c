@@ -228,6 +228,8 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
     *out_center_x = lli_as_double(data->center[0], data->bit_exp);
     *out_center_y = lli_as_double(data->center[1], data->bit_exp);
 
+    printf("Center is near %.16lf %.16lf\n", lli_as_double(data->center[0], BITS_EXP), lli_as_double(data->center[1], BITS_EXP));
+
     return data->current_image++ < data->total_images;
 }
 
@@ -303,7 +305,7 @@ struct searcher_info
     volatile int64_t ze;
 };
 
-#define NNN 10
+#define NNN 25
 
 DWORD depth_searcher(void *params)
 {
@@ -413,6 +415,11 @@ DWORD depth_searcher(void *params)
                     lli_load_double(z, 0.01, BITS_EXP);
                 }
             }
+        }
+        else if (rand() % 4 == 0)
+        {
+            lli_copy(x, (void *)info->best_x);
+            lli_copy(y, (void *)info->best_y);
         }
         ReleaseSRWLockExclusive(&info->lock);
 

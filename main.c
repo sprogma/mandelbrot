@@ -211,20 +211,11 @@ brainrot.exe -l # to see fps/current zoom/other information
     data.total_images = config.fps * config.i_zoom_time;
     data.zoom_step = pow(pow(2.0, -config.i_zoom_ps), 1.0 / config.fps);
 
-    /*
-        interesting points
-        
-        -0.743643887037158
-        0.131825904206411
-
-
-        -1.7687788
-        0.0017389
-    */
-
-    init_path(&data, 1e-2, -0.743643887037158, 0.131825904206411);
+    init_path(&data, 1e-2, config.start_x, config.start_y);
 
     optimize_depth(data.center[0], data.center[1], config.starting_serach_time, !config.have_staring_point);
+
+    printf("Center is near %.16lf %.16lf\n", lli_as_double(data.center[0], BITS_EXP), lli_as_double(data.center[1], BITS_EXP));
     
     auto render = init_render(&config);
     render_image(render, &data);
