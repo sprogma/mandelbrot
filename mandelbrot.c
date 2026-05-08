@@ -225,8 +225,8 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
 
     *out_zoom_m = zoom_m;
     *out_zoom_e = zoom_e;
-    *out_center_x = 0.0;//lli_as_double(data->center[0], data->bit_exp);
-    *out_center_y = 0.0;//lli_as_double(data->center[1], data->bit_exp);
+    *out_center_x = lli_as_double(data->center[0], data->bit_exp);
+    *out_center_y = lli_as_double(data->center[1], data->bit_exp);
 
     return data->current_image++ < data->total_images;
 }
@@ -332,8 +332,8 @@ DWORD depth_searcher(void *params)
     }
     else
     {
-        double dx = 6.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
-        double dy = 6.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
+        double dx = 4.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
+        double dy = 3.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
         lli_load_double(x, dx, BITS_EXP);
         lli_load_double(y, dy, BITS_EXP);
     }
@@ -423,8 +423,8 @@ DWORD depth_searcher(void *params)
         /* move x and y */
         if (bbest < NNN && info->ignore_starting_point) // search for random good point
         {
-            double dx = 6.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
-            double dy = 6.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
+            double dx = 4.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
+            double dy = 3.0 * ((double)rand() / RAND_MAX * 2.0 - 1.0);
             lli_load_double(x, dx, BITS_EXP);
             lli_load_double(y, dy, BITS_EXP);
         }

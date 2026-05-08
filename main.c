@@ -80,9 +80,8 @@ int main(int argc, const char **argv)
 {
     struct render_config config = {
         .i_start_zoom = 0.0,
-        .i_end_zoom = NAN,
         .i_zoom_time = NAN,
-        .i_zoom_ps = 0.1,
+        .i_zoom_ps = 1.0,
         .output_filename = NULL,
         .show_info = true,
         .use_float64 = false,
@@ -102,11 +101,10 @@ int main(int argc, const char **argv)
 ------ mandelbrot ------
 
 use -o filename to write video to file
-use -s X to select intial zoom [power of 10]
-use -e X to select destination zoov [power of 10]
+use -s X to select intial zoom [power of 2]
+use -z X to select zooming per second [power of 2]
 use -t X to select zooming time [seconds]
 use -st X to select serach waiting time
-use -z X to select zooming per second [power of 10]
 use -l   to enable showing/logging information
 use -r X Y to select resolution in pixels.
 use -d X to select device by d.
@@ -146,11 +144,6 @@ brainrot.exe -l # to see fps/current zoom/other information
         {
             if (i + 1 >= argc) { printf("-s parameter needs number after it.\n"); return 1; }
             config.i_start_zoom = normal_strtod(argv[++i], "-s");
-        }
-        else if (strcmp(argv[i], "-e") == 0)
-        {
-            if (i + 1 >= argc) { printf("-e parameter needs number after it.\n"); return 1; }
-            config.i_end_zoom = normal_strtod(argv[++i], "-e");
         }
         else if (strcmp(argv[i], "-z") == 0)
         {
@@ -216,7 +209,7 @@ brainrot.exe -l # to see fps/current zoom/other information
 
     struct path_data data = {};
     data.total_images = config.fps * config.i_zoom_time;
-    data.zoom_step = 0.98;
+    data.zoom_step = pow(pow(2.0, -config.i_zoom_ps), 1.0 / config.fps);
 
     /*
         interesting points

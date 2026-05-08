@@ -110,6 +110,24 @@ void main(uint3 dtid : SV_DispatchThreadID)
     
     float log2_pixel = log2(params.zoom_m) + float(params.zoom_e);
 
+    if (log2_pixel > -15.0)
+    {
+        float2 xy = params.relative_center + pixel_offset * ldexp(params.zoom_m, params.zoom_e);
+        
+        float x_minus_025 = xy.x - 0.25;
+        float q = x_minus_025 * x_minus_025 + xy.y * xy.y;
+        bool in_cardioid = q * (q + x_minus_025) < 0.25 * xy.y * xy.y;
+
+        float x_plus_1 = xy.x + 1.0;
+        bool in_circle = x_plus_1 * x_plus_1 + xy.y * xy.y < 0.0625;
+
+        if (in_cardioid || in_circle)
+        {
+            destImage[dtid.xy] = float4(0, 0, 0, 1);
+            return;
+        }
+    }
+
     int threshold_e = int(ceil(-log2_pixel)) + 9;
 
     for (uint i = 1; i < params.path_length; ++i) 

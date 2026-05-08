@@ -11,7 +11,6 @@
 struct render_config
 {
     double i_start_zoom;
-    double i_end_zoom;
     double i_zoom_time;
     double i_zoom_ps;
     const char *output_filename;
