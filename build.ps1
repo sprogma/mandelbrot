@@ -1,4 +1,5 @@
 
+$DEBUG = @("-g")
 # $DEBUG = @("-g", "-fsanitize=address")
 
 $CFLAGS = @("-std=gnu2y",

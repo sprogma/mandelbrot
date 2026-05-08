@@ -1,4 +1,4 @@
-#define ITEM_BITS 10
+#define ITEM_BITS 10 // since we always convert to i state for adam
 
 // for mandelbrot number
 #define BITS_EXP (BITS-64)

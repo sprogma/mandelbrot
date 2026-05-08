@@ -600,7 +600,7 @@ void _lli_fft_core(struct lli * __restrict__ a, int direction)
         double wlen_r = cos_table[direction][lenid];
         double wlen_i = sin_table[direction][lenid];
         
-        if (len > 8) // len / 2 > 4
+        if (len >= 8) // len / 2 >= 4
         {
             __m256d step4_r = _mm256_set1_pd(cos_table[direction][lenid - 2]);
             __m256d step4_i = _mm256_set1_pd(sin_table[direction][lenid - 2]);
@@ -657,33 +657,56 @@ void _lli_fft_core(struct lli * __restrict__ a, int direction)
                 }
             }
         }
-        else
-        {                        
-            for (uint64_t i = 0; i < n; i += len) 
+        else if (len == 4) // len / 2 == 2
+        {
+            if (direction == LLI_FFT_FORWARD)
             {
-                double w_r = 1.0;
-                double w_i = 0.0;
-                for (uint64_t j = 0; j < len / 2; j++) 
+                for (uint64_t i = 0; i < n; i += 4) 
                 {
-                    uint64_t idx1 = i + j;
-                    uint64_t idx2 = i + j + len / 2;
-
-                    double u_r = rdata[idx1];
-                    double u_i = idata[idx1];
-                    
-                    double v_r = rdata[idx2] * w_r - idata[idx2] * w_i;
-                    double v_i = rdata[idx2] * w_i + idata[idx2] * w_r;
-
-                    rdata[idx1] = u_r + v_r;
-                    idata[idx1] = u_i + v_i;
-                    rdata[idx2] = u_r - v_r;
-                    idata[idx2] = u_i - v_i;
-
-                    double next_w_r = w_r * wlen_r - w_i * wlen_i;
-                    double next_w_i = w_r * wlen_i + w_i * wlen_r;
-                    w_r = next_w_r;
-                    w_i = next_w_i;
+                    // first
+                    double u0_r = rdata[i],   u0_i = idata[i];
+                    double v0_r = rdata[i+2], v0_i = idata[i+2];
+                    rdata[i]   = u0_r + v0_r; idata[i]   = u0_i + v0_i;
+                    rdata[i+2] = u0_r - v0_r; idata[i+2] = u0_i - v0_i;
+                    // second
+                    double u1_r = rdata[i+1], u1_i = idata[i+1];
+                    double v1_r = -idata[i+3];
+                    double v1_i = rdata[i+3];
+                    rdata[i+1] = u1_r + v1_r; idata[i+1] = u1_i + v1_i;
+                    rdata[i+3] = u1_r - v1_r; idata[i+3] = u1_i - v1_i;
                 }
+            }
+            else
+            {
+                for (uint64_t i = 0; i < n; i += 4) 
+                {
+                    // first
+                    double u0_r = rdata[i],   u0_i = idata[i];
+                    double v0_r = rdata[i+2], v0_i = idata[i+2];
+                    rdata[i]   = u0_r + v0_r; idata[i]   = u0_i + v0_i;
+                    rdata[i+2] = u0_r - v0_r; idata[i+2] = u0_i - v0_i;
+                    // second
+                    double u1_r = rdata[i+1], u1_i = idata[i+1];
+                    double v1_r = idata[i+3];
+                    double v1_i = -rdata[i+3];
+                    rdata[i+1] = u1_r + v1_r; idata[i+1] = u1_i + v1_i;
+                    rdata[i+3] = u1_r - v1_r; idata[i+3] = u1_i - v1_i;
+                }
+            }
+        }
+        else if (len == 2) // len / 2 == 1
+        {    
+            #pragma clang loop vectorize(enable) interleave(enable)
+            for (uint64_t i = 0; i < n; i += 2) 
+            {
+                double u_r = rdata[i];
+                double u_i = idata[i];
+                double v_r = rdata[i+1];
+                double v_i = idata[i+1];
+                rdata[i]   = u_r + v_r;
+                idata[i]   = u_i + v_i;
+                rdata[i+1] = u_r - v_r;
+                idata[i+1] = u_i - v_i;
             }
         }
     }
