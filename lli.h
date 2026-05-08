@@ -83,6 +83,8 @@ void lli_add(struct lli *, struct lli *, int64_t flags);
 void lli_neg(struct lli *, int64_t flags);
 void lli_adam(struct lli *, int64_t n);
 
+void lli_madam(struct lli *, struct lli *, int64_t n);
+
 void lli_zero(struct lli *);
 void lli_copy(struct lli *, struct lli *);
 
@@ -203,6 +205,7 @@ void _lli_algo_sub_f(struct lli * __restrict__ a, struct lli * __restrict__ b);
 
 void _lli_i_norm_state(struct lli * __restrict__ a);
 void _lli_to_i_state(struct lli * __restrict__ a, int normalize);
+void _lli_to_i_state_shifted(struct lli * __restrict__ a, int shift);
 void _lli_to_f_state(struct lli * __restrict__ a);
 
 
@@ -247,6 +250,35 @@ void lli_mul(struct lli * __restrict__ a, struct lli * __restrict__ b, int64_t f
         _lli_algo_mul_f(a, b);
         _lli_to_i_state(b, 1); // TODO: fix bug when without this
     }
+}
+
+
+
+void lli_madam(struct lli *a, struct lli *b, int64_t n)
+{
+    ALIGN32(a);
+    ALIGN32(b);
+    
+    a->sign ^= b->sign;
+
+    if (a->ops_cnt + b->ops_cnt + 1 > a->max_ops_cnt)
+    {
+        if (b->ops_cnt > 0)
+        {
+            _lli_to_i_state(b, 1);
+        }
+        if (a->ops_cnt + 1 > a->max_ops_cnt)
+        {
+            _lli_to_i_state(a, 1);
+        }
+    }
+    
+    _lli_to_f_state(a);
+    _lli_to_f_state(b);
+    a->ops_cnt += b->ops_cnt + 1;
+    _lli_algo_mul_f(a, b);
+    _lli_to_i_state_shifted(a, n);
+    _lli_to_i_state(b, 1);
 }
 
 
@@ -741,6 +773,79 @@ void _lli_i_norm_state(struct lli * __restrict__ a)
     _lli_algo_addsub_i() // carrry and sign
 }
 
+
+void _lli_to_i_state_shifted(struct lli * __restrict__ a, int bitshift)
+{
+    ALIGN32(a);
+    
+    // full space buffer fly
+    uint64_t n = 2*a->length;
+    for (uint64_t i = 1, j = 0; i < n; i++) 
+    {
+        uint64_t bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) 
+        {
+            double temp_r = a->fdata[n + i];
+            double temp_i = a->fdata[i];
+            a->fdata[n + i] = a->fdata[n + j];
+            a->fdata[i] = a->fdata[j];
+            a->fdata[n + j] = temp_r;
+            a->fdata[j] = temp_i;
+        }
+    }
+
+    _lli_fft_core(a, LLI_FFT_INVERSE);
+
+    /* copy back to ibuffer */
+    a->length *= 2;
+    
+    for (uint64_t i = 0; i < a->length; ++i)
+    {
+        a->idata[i] = a->fdata[n + i] + 0.5; // round up
+    }
+
+    _lli_algo_addsub_i() // carrry and sign
+
+    a->state = LLI_STATE_I;
+    
+    uint64_t cell_shift = bitshift / a->bits;
+    uint32_t bit_shift = bitshift % a->bits;
+    
+    
+    if (cell_shift >= a->length)
+    {
+        memset(a->idata, 0, a->length * sizeof(*a->idata));
+        a->length /= 2;
+        return;
+    }
+
+    uint64_t limit = a->length - cell_shift;
+
+    for (uint64_t i = 0; i < a->length; i++) 
+    {
+        if (i < limit) 
+        {
+            uint64_t current = a->idata[i + cell_shift] & a->bits_mask;
+            
+            uint64_t res = current >> bit_shift;
+            
+            if (bit_shift > 0 && (i + cell_shift + 1) < a->length)
+            {
+                uint64_t next = a->idata[i + cell_shift + 1] & a->bits_mask;
+                res |= (next << (a->bits - bit_shift)) & a->bits_mask;
+            }
+            a->idata[i] = res;
+        } 
+        else 
+        {
+            a->idata[i] = 0;
+        }
+    }
+    
+    a->length /= 2;
+}
 
 void _lli_to_i_state(struct lli * __restrict__ a, int normalize)
 {

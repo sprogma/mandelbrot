@@ -62,14 +62,11 @@ int update_zoom(struct path_data *data, double dzoom, double dx, double dy)
     // data->center[0] += data->zoom * dx;
     // data->center[1] += data->zoom * dy;
 
-    lli_mul(data->zoom, data->tmp[0], 0);
-    lli_adam(data->zoom, data->bit_exp);
+    lli_madam(data->zoom, data->tmp[0], data->bit_exp);
 
-    lli_mul(data->tmp[1], data->zoom, 0);
-    lli_adam(data->tmp[1], data->bit_exp);
+    lli_madam(data->tmp[1], data->zoom, data->bit_exp);
 
-    lli_mul(data->tmp[2], data->zoom, 0);
-    lli_adam(data->tmp[2], data->bit_exp);
+    lli_madam(data->tmp[2], data->zoom, data->bit_exp);
 
     lli_add(data->center[0], data->tmp[1], 0);
     lli_add(data->center[1], data->tmp[2], 0);
@@ -105,8 +102,7 @@ void llf_add(struct llf *res, struct llf *a, struct llf *b, struct path_data *da
 void llf_mul(struct llf *res, struct llf *a, struct llf *b, struct path_data *data)
 {
     lli_copy(res->val, a->val);
-    lli_mul(res->val, b->val, 0);
-    lli_adam(res->val, data->bbit_exp);
+    lli_madam(res->val, b->val, data->bbit_exp);
     res->exp = a->exp + b->exp;
 }
 
@@ -116,8 +112,7 @@ void llf_mul_double(struct llf *res, struct llf *a, double val, struct path_data
     double m = frexp(val, &e);
     lli_copy(res->val, a->val);
     lli_load_double(data->btmp[0].val, m, data->bbit_exp);
-    lli_mul(res->val, data->btmp[0].val, 0);
-    lli_adam(res->val, data->bbit_exp);
+    lli_madam(res->val, data->btmp[0].val, data->bbit_exp);
     res->exp = a->exp + (e - 1);
 }
 
@@ -191,7 +186,7 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
             buffer[i+1][0] = lli_as_double(data->tmp[2], data->bit_exp);
             buffer[i+1][1] = lli_as_double(data->tmp[3], data->bit_exp); // [1..] = path
 
-            if (fabs(buffer[i+1][0]) > 2000.0 || fabs(buffer[i+1][1]) > 2000.0)
+            if (fabsf(buffer[i+1][0]) > 2000.0f || fabsf(buffer[i+1][1]) > 2000.0f)
             {
                 data->current_depth = i - 2;
                 break;
@@ -203,15 +198,12 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
             // long double nzr = (zr * zr) - (zi * zi) + pr;
 
             lli_copy(data->tmp[4], data->tmp[2]);    // = zr
-            lli_mul(data->tmp[4], data->tmp[3], 0);  // = zr * zi
-            lli_adam(data->tmp[4], data->bit_exp);
+            lli_madam(data->tmp[4], data->tmp[3], data->bit_exp);  // = zr * zi
 
             lli_copy(data->tmp[5], data->tmp[2]);    // = zr
-            lli_mul(data->tmp[2], data->tmp[5], 0);  // zr = zr * zr
-            lli_adam(data->tmp[2], data->bit_exp);
+            lli_madam(data->tmp[2], data->tmp[5], data->bit_exp);  // zr = zr * zr
             lli_copy(data->tmp[5], data->tmp[3]);    // = zi
-            lli_mul(data->tmp[5], data->tmp[3], 0);  // = zi * zi
-            lli_adam(data->tmp[5], data->bit_exp);
+            lli_madam(data->tmp[5], data->tmp[3], data->bit_exp);  // = zi * zi
             lli_neg(data->tmp[5], 0);                // = - zi * zi
             lli_add(data->tmp[2], data->tmp[5], 0);  // zr = zr * zr - zi * zi
 
@@ -277,15 +269,12 @@ int64_t get_depth(struct lli *x, struct lli *y, struct lli *tmp[8], int64_t bit_
         // long double nzr = (zr * zr) - (zi * zi) + pr;
 
         lli_copy(tmp[4], tmp[2]);    // = zr
-        lli_mul(tmp[4], tmp[3], 0);  // = zr * zi
-        lli_adam(tmp[4], bit_exp);
+        lli_madam(tmp[4], tmp[3], bit_exp);  // = zr * zi
 
         lli_copy(tmp[5], tmp[2]);    // = zr
-        lli_mul(tmp[2], tmp[5], 0);  // zr = zr * zr
-        lli_adam(tmp[2], bit_exp);
+        lli_madam(tmp[2], tmp[5], bit_exp);  // zr = zr * zr
         lli_copy(tmp[5], tmp[3]);    // = zi
-        lli_mul(tmp[5], tmp[3], 0);  // = zi * zi
-        lli_adam(tmp[5], bit_exp);
+        lli_madam(tmp[5], tmp[3], bit_exp);  // = zi * zi
         lli_neg(tmp[5], 0);          // = - zi * zi
         lli_add(tmp[2], tmp[5], 0);  // zr = zr * zr - zi * zi
 
@@ -396,20 +385,17 @@ DWORD depth_searcher(void *params)
                 if (tt < 20)
                 {
                     lli_load_double(tmp[0], 0.5 / tt / tt, BITS_EXP);
-                    lli_mul(z, tmp[0], 0);
-                    lli_adam(z, BITS_EXP);
+                    lli_madam(z, tmp[0], BITS_EXP);
                 }
                 else if (tt < 50)
                 {
                     lli_load_double(tmp[0], 0.5 * (tt - 19) * (tt - 19), BITS_EXP);
-                    lli_mul(z, tmp[0], 0);
-                    lli_adam(z, BITS_EXP);
+                    lli_madam(z, tmp[0], BITS_EXP);
                 }
                 else
                 {
                     lli_load_double(tmp[0], 0.5 * (tt - 40) * (tt - 40) * (tt - 40), BITS_EXP);
-                    lli_mul(z, tmp[0], 0);
-                    lli_adam(z, BITS_EXP);
+                    lli_madam(z, tmp[0], BITS_EXP);
                     if (tt > 200)
                     {
                         tt = 0;
@@ -432,8 +418,7 @@ DWORD depth_searcher(void *params)
 
         /* adjust zoom */
         lli_load_double(tmp[0], sqrt((double)rand() / RAND_MAX) * 0.3 + 0.7, BITS_EXP);
-        lli_mul(z, tmp[0], 0);
-        lli_adam(z, BITS_EXP);
+        lli_madam(z, tmp[0], BITS_EXP);
 
         /* move x and y */
         if (bbest < NNN && info->ignore_starting_point) // search for random good point
@@ -450,10 +435,8 @@ DWORD depth_searcher(void *params)
             double dy = ((double)rand() / RAND_MAX * 2.0 - 1.0);
             lli_load_double(tmp[0], dx, BITS_EXP);
             lli_load_double(tmp[1], dy, BITS_EXP);
-            lli_mul(tmp[0], z, 0);
-            lli_mul(tmp[1], z, 0);
-            lli_adam(tmp[0], BITS_EXP);
-            lli_adam(tmp[1], BITS_EXP);
+            lli_madam(tmp[0], z, BITS_EXP);
+            lli_madam(tmp[1], z, BITS_EXP);
             lli_add(x, tmp[0], 0);
             lli_add(y, tmp[1], 0);
         }
