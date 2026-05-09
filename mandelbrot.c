@@ -121,7 +121,7 @@ void llf_mul_double(struct llf *res, struct llf *a, double val, struct path_data
 
 
 
-int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, float *out_center_x, float *out_center_y)
+int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, double *out_center_x, double *out_center_y)
 {
     data->moditified = data->current_image == 0;
     
@@ -228,8 +228,6 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, f
     *out_center_x = lli_as_double(data->center[0], data->bit_exp);
     *out_center_y = lli_as_double(data->center[1], data->bit_exp);
 
-    printf("Center is near %.16lf %.16lf\n", lli_as_double(data->center[0], BITS_EXP), lli_as_double(data->center[1], BITS_EXP));
-
     return data->current_image++ < data->total_images;
 }
 
@@ -328,7 +326,7 @@ DWORD depth_searcher(void *params)
         lli_copy(x, (void *)info->best_x);
         lli_copy(y, (void *)info->best_y);
 
-        lli_load_double(z, 0.01, BITS_EXP);
+        lli_load_double(z, 0.00001, BITS_EXP);
             
         ReleaseSRWLockExclusive(&info->lock);
     }
@@ -370,7 +368,7 @@ DWORD depth_searcher(void *params)
 
                 if (!info->ignore_starting_point)
                 {
-                    lli_load_double(z, 0.01, BITS_EXP);
+                    lli_load_double(z, 0.00001, BITS_EXP);
                 }
                 else
                 {
@@ -410,9 +408,9 @@ DWORD depth_searcher(void *params)
                     lli_add(z, tmp[0], 0);
                 }
 
-                if (!info->ignore_starting_point && lli_as_double(z, BITS_EXP) > 0.01)
+                if (!info->ignore_starting_point && lli_as_double(z, BITS_EXP) > 0.00001)
                 {
-                    lli_load_double(z, 0.01, BITS_EXP);
+                    lli_load_double(z, 0.00001, BITS_EXP);
                 }
             }
         }

@@ -47,7 +47,7 @@ struct path_data
 
 int init_path(struct path_data *data, double start_zoom, double start_x, double start_y);
 int update_zoom(struct path_data *data, double dzoom, double dx, double dy);
-int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, float *out_center_x, float *out_center_y);
+int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, double *out_center_x, double *out_center_y);
 void optimize_depth(struct lli *x, struct lli *y, int64_t stime, bool ignore_starting_point);
 
 #endif

@@ -44,9 +44,10 @@ struct push_constant_parameter
     uint32_t anchor_points;
     uint32_t path_length;
     float center[2];
+    double db_center[2];
 };
 
-#define MAX_FRAMES_IN_FLIGHT 4
+#define MAX_FRAMES_IN_FLIGHT 5
 
 struct encode_job 
 {
@@ -1385,11 +1386,6 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_download_buffers(r));
     RETFROM(init_render_targets(r));
     RETFROM(init_pipeline_layout(r));
-    if (r->config.use_float64)
-    {
-        printf("Error: For now, float64 aren't supported.\n");
-        return NULL;
-    }
     RETFROM(init_compute_pipeline(r, (r->config.use_float64 ? "./kernel64_opt.spv" : "./kernel_opt.spv")));
     RETFROM(init_descriptor_sets(r));
     RETFROM(init_command_buffer(r));
@@ -1596,6 +1592,26 @@ void render_image(struct render *r, struct path_data *path)
                 break;
             }
         }
+
+        if (r->config.output_filename)
+        {
+            update_zoom(path, path->zoom_step, 0.0, 0.0);    
+        }
+        
+        struct push_constant_parameter params;
+        if (!calculate_path(path, &params.zoom_m, &params.zoom_e,
+                            &params.db_center[0], &params.db_center[1]))
+        {    
+            return;
+        }
+        params.center[0] = params.db_center[0];
+        params.center[1] = params.db_center[1];
+        params.time = path->time;
+        params.anchor_points = path->points_count;
+        params.path_length = path->current_depth;
+
+        prev_zoom_e = params.zoom_e + log2(params.zoom_m);
+
         
         if (r->config.output_filename)
         {
@@ -1603,20 +1619,7 @@ void render_image(struct render *r, struct path_data *path)
 
             SDL_WaitSemaphore(r->buffer_free_sem[i]);
             
-            update_zoom(path, path->zoom_step, 0.0, 0.0);
             
-            struct push_constant_parameter params;
-            if (!calculate_path(path, &params.zoom_m, &params.zoom_e,
-                                &params.center[0], &params.center[1]))
-            {    
-                return;
-            }
-            params.time = path->time;
-            params.anchor_points = path->points_count;
-            params.path_length = path->current_depth;
-
-            prev_zoom_e = params.zoom_e + log2(params.zoom_m);
-
             VkCommandBufferBeginInfo begin_info = {};
             begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1729,17 +1732,6 @@ void render_image(struct render *r, struct path_data *path)
             
             vkWaitForFences(r->device, 1, &r->in_flight_fences[0], VK_TRUE, UINT64_MAX);
             vkResetFences(r->device, 1, &r->in_flight_fences[0]);
-
-            struct push_constant_parameter params;
-            if (!calculate_path(path, &params.zoom_m, &params.zoom_e, &params.center[0], &params.center[1]))
-            {
-                return;
-            }
-            params.time = path->time;
-            params.anchor_points = path->points_count;
-            params.path_length = path->current_depth;
-
-            prev_zoom_e = params.zoom_e + log2(params.zoom_m);
             
             uint32_t image_index = 0;
 
