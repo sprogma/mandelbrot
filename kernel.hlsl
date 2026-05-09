@@ -245,8 +245,8 @@ void FloatRender(uint2 dtid, float2 pixel_offset, float log2_pixel)
         }
 
         float2 diff = z - zold;
-        if (dot(diff, diff) < 5e-7) 
-        { 
+        if (dot(diff, diff) < 1e-9) 
+        {
             break;
         }
         
@@ -370,11 +370,11 @@ void DoubleRender(uint2 dtid, float2 pixel_offset, double log2_pixel)
             break;
         }
 
-        double2 diff = z - zold;
-        if (dot(diff, diff) < 5e-7) 
+        /*double2 diff = z - zold;
+        if (dot(diff, diff) < 5e-17) 
         { 
             break;
-        }
+        }*/
         
         if (i == power) 
         {
