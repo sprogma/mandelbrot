@@ -3,7 +3,9 @@ if (!$CLANG) $CLANG = "clang"
 $DEBUG = @("-g")
 # $DEBUG = @("-g", "-fsanitize=address")
 
-$CFLAGS = @("-std=gnu2y",
+$gnu2y = $(clang -v -std=gnu2y -xc /dev/null -E >$null 2>&1; $?)
+
+$CFLAGS = @(($gnu2y ? "-std=gnu2y" : "-std=gnu23"),
             "-O3",
             "-march=native",
             "-fms-extensions"
