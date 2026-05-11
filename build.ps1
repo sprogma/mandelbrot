@@ -1,4 +1,5 @@
-if (!$CLANG) $CLANG = "clang"
+if (!$env:CLANG) { $CLANG = "clang" }
+else             { $CLANG = $env:CLANG }
 
 $DEBUG = @("-g")
 # $DEBUG = @("-g", "-fsanitize=address")
@@ -40,7 +41,7 @@ else
     "$_.o"
 }) -o frac.exe $LDFLAGS || $(Write-Host "Error: code don't linked" -Fore red; exit 1)
 
-& $CLANG lli_test.c -o test.exe -lm ($CFLAGS|?{$_ -notmatch "-O\d"}) || $(Write-Host "Error: tests don't compiled" -Fore red; exit 1)
+& $CLANG lli_test.c -o test.exe ($IsLinux ? "-lm" : @()) ($CFLAGS|?{$_ -notmatch "-O\d"}) || $(Write-Host "Error: tests don't compiled" -Fore red; exit 1)
 ./test.exe || $(Write-Host "Error: tests failed" -Fore red; exit 1)
 
 $OPT = "-O3", "-all-resources-bound"
