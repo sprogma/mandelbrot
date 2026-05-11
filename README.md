@@ -1,5 +1,10 @@
 
-
+To build, you need something like this to be installed:
+```
+vulkan (sdk)
+ffmpeg
+sdl3 (sdk)
+```
 
 
 To stop rendring, create file `stop_now`
