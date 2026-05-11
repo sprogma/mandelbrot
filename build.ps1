@@ -4,7 +4,8 @@ $DEBUG = @("-g")
 
 $CFLAGS = @("-std=gnu2y",
             "-O3",
-            "-march=native"
+            "-march=native",
+            "-Wno-microsoft"
             # "-Rpass=loop-vectorize",
             # "-Rpass-missed=loop-vectorize",
             # "-Rpass-analysis=loop-vectorize"

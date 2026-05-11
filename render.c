@@ -64,7 +64,7 @@ int callback_worker(void *ptr);
 
 struct render
 {
-    struct render_config config;
+    struct base_render;
 
 /* sdl info */
     SDL_Window *window;
@@ -1367,7 +1367,7 @@ int init_video(struct render *r)
 
 #define RETFROM(x) if (x) { return NULL; } 
 
-struct render *init_render(const struct render_config *config)
+struct base_render *init_render(const struct render_config *config)
 {
     struct render *r = calloc(1, sizeof(*r));
     
@@ -1405,7 +1405,7 @@ struct render *init_render(const struct render_config *config)
 
     printf("Initialzation finished.\n");
 
-    return r;
+    return (struct base_render *)r;
 }
 
 
@@ -1542,8 +1542,9 @@ int encoder_worker(void *ptr)
 }
 
 
-void render_image(struct render *r, struct path_data *path)
+void render_image(struct base_render *br, struct path_data *path)
 {
+    struct render *r = (struct render *)br;
     VkDeviceSize buffer_size = MAX_POINTS_COUNT * MAX_PATH_LENGTH * sizeof(float) * 2;
     vkMapMemory(r->device, r->staging_memory, 0, buffer_size, 0, (void **)&path->data);
 
@@ -1992,8 +1993,9 @@ void close_video(struct render *r)
 }
 
 
-void render_deinit(struct render *r)
+void render_deinit(struct base_render *br)
 {
+    struct render *r = (struct render *)br;
     close_video(r);
 
     if (r->device) 

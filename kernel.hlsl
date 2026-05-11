@@ -620,8 +620,7 @@ void main(uint3 dtid : SV_DispatchThreadID)
 #endif
     else
     {
-        destImage[dtid.xy] = float4(0, 0, 0, 1);
-        //DeepRender(dtid.xy, pixel_offset, log2_pixel);
+        DeepRender(dtid.xy, pixel_offset, log2_pixel);
     }
 }
 

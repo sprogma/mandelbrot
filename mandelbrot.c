@@ -13,8 +13,10 @@
 #include "lli.h"
 
 
-int init_path(struct path_data *data, double start_zoom, double start_x, double start_y)
+int init_path(struct base_render *render, struct path_data *data, double start_zoom, double start_x, double start_y)
 {
+    data->render = render;
+
     data->item_bits = ITEM_BITS; // 1 multiplication - ok
     data->bits = BITS;
     data->bit_exp = BITS_EXP;
@@ -138,6 +140,8 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, d
 
     lli_as_double2(data->zoom, data->bit_exp, &zoom_m, &zoom_e);
 
+    double zoom_exponent = zoom_e + log2(zoom_m);
+
     data->points_count = 1;
     data->path_length = 10 + 70 * llabs(zoom_e);
     static bool first_time = true;
@@ -151,6 +155,20 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, d
         data->path_length = MAX_PATH_LENGTH;
     }
     data->path_length = MAX_PATH_LENGTH;
+
+    bool render_data = true;
+    if (zoom_exponent > -18.0)
+    {
+        render_data = false;
+    }
+    if (data->render->config.use_floatfloat && zoom_exponent > -38.0)
+    {
+        render_data = false;
+    }
+    if (data->render->config.use_float64 && zoom_exponent > -55.0) // TODO: check this
+    {
+        render_data = false;
+    }
 
     /* take center, and calculate it's position */
 
@@ -178,40 +196,47 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, d
         buffer[0][1] = 0.0;//lli_as_double(data->tmp[1], data->bit_exp); // [0] = center
 
         // printf("start: %f %f\n", buffer[0][0], buffer[0][1]);
-        for (int64_t i = data->calculated_depth[p]; i < data->path_length; ++i)
+        if (render_data)
         {
-            data->moditified = true;
-            
-            // printf("%lld/%lld\n", i, data->path_length);
-            buffer[i+1][0] = lli_as_double(data->tmp[2], data->bit_exp);
-            buffer[i+1][1] = lli_as_double(data->tmp[3], data->bit_exp); // [1..] = path
-
-            if (fabsf(buffer[i+1][0]) > 2000.0f || fabsf(buffer[i+1][1]) > 2000.0f)
+            for (int64_t i = data->calculated_depth[p]; i < data->path_length; ++i)
             {
-                data->current_depth = i - 2;
-                break;
+                data->moditified = true;
+                
+                // printf("%lld/%lld\n", i, data->path_length);
+                buffer[i+1][0] = lli_as_double(data->tmp[2], data->bit_exp);
+                buffer[i+1][1] = lli_as_double(data->tmp[3], data->bit_exp); // [1..] = path
+
+                if (fabsf(buffer[i+1][0]) > 2000.0f || fabsf(buffer[i+1][1]) > 2000.0f)
+                {
+                    data->current_depth = i - 2;
+                    break;
+                }
+
+                // printf("%f %f\n", buffer[i][0], buffer[i][1]);
+
+                // long double nzi = zr * zi * 2.0 + pi;
+                // long double nzr = (zr * zr) - (zi * zi) + pr;
+
+                lli_copy(data->tmp[4], data->tmp[2]);    // = zr
+                lli_madam(data->tmp[4], data->tmp[3], data->bit_exp);  // = zr * zi
+
+                lli_copy(data->tmp[5], data->tmp[2]);    // = zr
+                lli_madam(data->tmp[2], data->tmp[5], data->bit_exp);  // zr = zr * zr
+                lli_copy(data->tmp[5], data->tmp[3]);    // = zi
+                lli_madam(data->tmp[5], data->tmp[3], data->bit_exp);  // = zi * zi
+                lli_neg(data->tmp[5], 0);                // = - zi * zi
+                lli_add(data->tmp[2], data->tmp[5], 0);  // zr = zr * zr - zi * zi
+
+                lli_copy(data->tmp[3], data->tmp[4]);    // zi = zr * zi
+                lli_add(data->tmp[3], data->tmp[4], 0);  // zi = zr * zi * 2.0
+
+                lli_add(data->tmp[2], data->tmp[0], 0);  // zr += pr
+                lli_add(data->tmp[3], data->tmp[1], 0);  // zi += pi
             }
-
-            // printf("%f %f\n", buffer[i][0], buffer[i][1]);
-
-            // long double nzi = zr * zi * 2.0 + pi;
-            // long double nzr = (zr * zr) - (zi * zi) + pr;
-
-            lli_copy(data->tmp[4], data->tmp[2]);    // = zr
-            lli_madam(data->tmp[4], data->tmp[3], data->bit_exp);  // = zr * zi
-
-            lli_copy(data->tmp[5], data->tmp[2]);    // = zr
-            lli_madam(data->tmp[2], data->tmp[5], data->bit_exp);  // zr = zr * zr
-            lli_copy(data->tmp[5], data->tmp[3]);    // = zi
-            lli_madam(data->tmp[5], data->tmp[3], data->bit_exp);  // = zi * zi
-            lli_neg(data->tmp[5], 0);                // = - zi * zi
-            lli_add(data->tmp[2], data->tmp[5], 0);  // zr = zr * zr - zi * zi
-
-            lli_copy(data->tmp[3], data->tmp[4]);    // zi = zr * zi
-            lli_add(data->tmp[3], data->tmp[4], 0);  // zi = zr * zi * 2.0
-
-            lli_add(data->tmp[2], data->tmp[0], 0);  // zr += pr
-            lli_add(data->tmp[3], data->tmp[1], 0);  // zi += pi
+        }
+        else
+        {
+            data->calculated_depth[p] = 0;
         }
 
         // calculate An Bn based on buffer

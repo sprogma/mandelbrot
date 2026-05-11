@@ -29,12 +29,15 @@ struct render_config
 };
 
 
-struct render;
+struct base_render
+{
+    struct render_config config;
+};
 
 
-struct render *init_render(const struct render_config *config);
-void render_image(struct render *r, struct path_data *path);
-void render_deinit(struct render *render);
+struct base_render *init_render(const struct render_config *config);
+void render_image(struct base_render *r, struct path_data *path);
+void render_deinit(struct base_render *render);
 
 
 #endif
