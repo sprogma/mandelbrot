@@ -1365,7 +1365,7 @@ int init_video(struct render *r)
     return 0;
 }
 
-#define RETFROM(x) if (x) { return NULL; } 
+#define RETFROM(x) if (x) { printf("Error: Can't initializate %s\n", #x); return NULL; } 
 
 struct base_render *init_render(const struct render_config *config)
 {
