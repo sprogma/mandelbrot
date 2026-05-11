@@ -5,6 +5,8 @@
 #include "math.h"
 #include "stdio.h"
 
+#include "SDL3/SDL.h"
+
 #include "render.h"
 #include "mandelbrot.h"
 #include "common_defines.h"
@@ -311,11 +313,9 @@ int64_t get_depth(struct lli *x, struct lli *y, struct lli *tmp[8], int64_t bit_
     return 0;
 }
 
-#include "windows.h"
-
 struct searcher_info
 {
-    SRWLOCK lock;
+    SDL_RWLock *lock;
     volatile _Atomic int64_t tryes;
     volatile int64_t best;
     volatile int64_t search;
@@ -329,7 +329,7 @@ struct searcher_info
 
 #define NNN 25
 
-DWORD depth_searcher(void *params)
+int depth_searcher(void *params)
 {
     struct searcher_info *info = params;
 
@@ -345,14 +345,14 @@ DWORD depth_searcher(void *params)
 
     if (!info->ignore_starting_point)
     {
-        AcquireSRWLockExclusive(&info->lock);
+        SDL_LockRWLockForWriting(info->lock);
         
         lli_copy(x, (void *)info->best_x);
         lli_copy(y, (void *)info->best_y);
 
         lli_load_double(z, 0.00001, BITS_EXP);
             
-        ReleaseSRWLockExclusive(&info->lock);
+        SDL_UnlockRWLock(info->lock);
     }
     else
     {
@@ -369,7 +369,7 @@ DWORD depth_searcher(void *params)
         
         cnt++;
         
-        AcquireSRWLockExclusive(&info->lock);
+        SDL_LockRWLockForWriting(info->lock);
         bbest = info->best;
         info->tryes ++;
         // printf("FOUND %lld vs %lld at zoom %g\n", res, info->best, lli_as_double(z, BITS_EXP));
@@ -443,7 +443,7 @@ DWORD depth_searcher(void *params)
             lli_copy(x, (void *)info->best_x);
             lli_copy(y, (void *)info->best_y);
         }
-        ReleaseSRWLockExclusive(&info->lock);
+        SDL_UnlockRWLock(info->lock);
 
         /* adjust zoom */
         lli_load_double(tmp[0], sqrt((double)rand() / RAND_MAX) * 0.3 + 0.7, BITS_EXP);
@@ -483,10 +483,10 @@ DWORD depth_searcher(void *params)
 void optimize_depth(struct lli *x, struct lli *y, int64_t stime, bool ignore_starting_point)
 {
     int workers = 8;
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     
     struct searcher_info info = {
-        .lock = SRWLOCK_INIT,
+        .lock = SDL_CreateRWLock(),
         .tryes = 0,
         .best = 0,
         .search = 1,
@@ -498,34 +498,37 @@ void optimize_depth(struct lli *x, struct lli *y, int64_t stime, bool ignore_sta
         .ze = 0,
     };
     
-    DWORD threadId[64];
+    SDL_Thread *threads[64];
 
-    HANDLE hThread[64];
     for (int i = 0; i < workers; ++i)
     {
-        hThread[i] = CreateThread(NULL, 0, depth_searcher, &info, 0, threadId+i);
+        char thread_name[32];
+        SDL_snprintf(thread_name, sizeof(thread_name), "Worker_%d", i);
+        
+        threads[i] = SDL_CreateThread((SDL_ThreadFunction)depth_searcher, thread_name, &info);
     }
 
     printf("Waiting...\n");
     int64_t t = time(NULL);
     while (time(NULL) - t < stime)
     {
-        printf("Found:  depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f | %lld s. left\n", info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, -(log2(0.1 + info.zf) + info.ze), stime - (time(NULL) - t));
-        Sleep(500);
+        printf("Found:  depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f | %lld s. left\n", 
+               info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, 
+               -(log2(0.1 + info.zf) + info.ze), stime - (time(NULL) - t));
+        SDL_Delay(500);
     }
 
     printf("Ending...\n");
     info.search = 0;
-    printf("Result: depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f\n", info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, -(log2(0.1 + info.zf) + info.ze));
+    printf("Result: depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f\n", 
+           info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, -(log2(0.1 + info.zf) + info.ze));
 
     for (int i = 0; i < workers; ++i)
     {
-        WaitForSingleObject(hThread[i], INFINITE);
-        CloseHandle(hThread);
+        int status;
+        SDL_WaitThread(threads[i], &status);
     }
+
+    SDL_DestroyRWLock(info.lock);
 }
-
-
-
-
 
