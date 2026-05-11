@@ -233,17 +233,16 @@ int calculate_path(struct path_data *data, float *out_zoom_m, int *out_zoom_e, d
                 lli_add(data->tmp[2], data->tmp[0], 0);  // zr += pr
                 lli_add(data->tmp[3], data->tmp[1], 0);  // zi += pi
             }
+            
+            // calculate An Bn based on buffer
+            data->calculated_depth[p] = data->path_length;
+            lli_copy(data->calculated_depth_values[p][0], data->tmp[2]);
+            lli_copy(data->calculated_depth_values[p][1], data->tmp[3]);
         }
         else
         {
             data->calculated_depth[p] = 0;
         }
-
-        // calculate An Bn based on buffer
-
-        data->calculated_depth[p] = data->path_length;
-        lli_copy(data->calculated_depth_values[p][0], data->tmp[2]);
-        lli_copy(data->calculated_depth_values[p][1], data->tmp[3]);
     }
 
     /* calculate zoom to be near 1.0 */

@@ -90,7 +90,7 @@ int main(int argc, const char **argv)
         .w = 1920,
         .h = 1080,
         .device_id = -1,
-        .fps = 60,
+        .fps = 30,
         .starting_serach_time = 60,
         .video_preset = 0,
     };
