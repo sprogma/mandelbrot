@@ -381,6 +381,8 @@ int depth_searcher(void *params)
             lli_copy((void *)info->best_y, y);
             lli_copy((void *)info->best_z, z);
             lli_as_double2(z, BITS_EXP, (void *)&info->zf, (void *)&info->ze);
+
+            printf("new best, center near %12.8lf %12.8lf [depth %lld]\n", lli_as_double((void *)info->best_x, BITS_EXP), lli_as_double((void *)info->best_y, BITS_EXP), res);
         }
         else if (cnt % 30 == 0)
         {
