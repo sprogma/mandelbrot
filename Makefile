@@ -16,7 +16,7 @@ OBJS = $(SRCS:.c=.o)
 
 .PHONY: all clean test shaders
 
-all: frac.exe test
+all: frac.exe test shaders
 
 frac.exe: $(OBJS)
 	$(CLANG) $(OBJS) -o frac.exe $(LDFLAGS)
