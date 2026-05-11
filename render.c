@@ -1374,6 +1374,12 @@ struct render *init_render(const struct render_config *config)
     r->config = *config;
     r->frames_sent = 0;
 
+    if (r->config.use_float64 && r->config.use_floatfloat)
+    {
+        printf("Error: can't use both float64 and floatfloat.\n");
+        return NULL;
+    }
+
     RETFROM(init_window(r));
     RETFROM(init_instance(r));
     RETFROM(init_surface(r));
@@ -1386,7 +1392,12 @@ struct render *init_render(const struct render_config *config)
     RETFROM(init_download_buffers(r));
     RETFROM(init_render_targets(r));
     RETFROM(init_pipeline_layout(r));
-    RETFROM(init_compute_pipeline(r, (r->config.use_float64 ? "./kernel64_opt.spv" : "./kernel_opt.spv")));
+    if (r->config.use_float64)
+    { RETFROM(init_compute_pipeline(r, "./kernel64_opt.spv")); }
+    else if (r->config.use_floatfloat)
+    { RETFROM(init_compute_pipeline(r, "./kernelff_opt.spv")); }
+    else 
+    { RETFROM(init_compute_pipeline(r, "./kernel_opt.spv")); }
     RETFROM(init_descriptor_sets(r));
     RETFROM(init_command_buffer(r));
     RETFROM(init_syncs(r));
@@ -1606,6 +1617,17 @@ void render_image(struct render *r, struct path_data *path)
         }
         params.center[0] = params.db_center[0];
         params.center[1] = params.db_center[1];
+        if (r->config.use_floatfloat)
+        {
+            // convert db_center
+            double x = params.db_center[0];
+            double y = params.db_center[1];
+            float *fc = (float *)&params.db_center[0];
+            fc[0] = x;
+            fc[1] = (float)(x - (double)fc[0]);
+            fc[2] = y;
+            fc[3] = (float)(y - (double)fc[2]);
+        }
         params.time = path->time;
         params.anchor_points = path->points_count;
         params.path_length = path->current_depth;

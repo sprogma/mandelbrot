@@ -16,6 +16,7 @@ struct render_config
     const char *output_filename;
     bool show_info;
     bool use_float64;
+    bool use_floatfloat;
     bool use_accelerated_encoding;
     int64_t w, h;
     int32_t device_id;

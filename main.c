@@ -85,6 +85,7 @@ int main(int argc, const char **argv)
         .output_filename = NULL,
         .show_info = true,
         .use_float64 = false,
+        .use_floatfloat = false,
         .use_accelerated_encoding = false,
         .w = 1920,
         .h = 1080,
@@ -110,7 +111,8 @@ use -r X Y to select resolution in pixels.
 use -d X to select device by d.
 use -f X to select fps.
 use -p X to select preset [0-5] [fast-small].
-use -f64 to enable float64.
+use -f64 to enable float64 on zooms <~ 2^60.
+use -ff to enable float-float acceleration on zooms <~ 2^42
 use -ae to enable accelerated video encoding (if supported by device).
 use -c X Y [doubles] to select starting point. It will be still updated to find more deep image, but changes will be not big (near ~0.01 in distance)
 
@@ -200,6 +202,10 @@ brainrot.exe -l # to see fps/current zoom/other information
         else if (strcmp(argv[i], "-f64") == 0)
         {
             config.use_float64 = true;
+        }
+        else if (strcmp(argv[i], "-ff") == 0)
+        {
+            config.use_floatfloat = true;
         }
         else if (strcmp(argv[i], "-ae") == 0)
         {

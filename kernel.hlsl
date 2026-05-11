@@ -73,6 +73,9 @@ struct PushConstants
 #ifdef FLOAT64
     double2 relative_center64;
 #endif
+#ifdef FLOATFLOAT
+    float4 relative_centerff;
+#endif
 };
 
 [[vk::push_constant]]
@@ -102,7 +105,7 @@ void DeepRender(uint2 dtid, float2 pixel_offset, float log2_pixel)
 
     int threshold_e = int(ceil(-log2_pixel)) + 9;
 
-    int biased_diff_log2 = (int)floor(log2_pixel) + 12;
+    // int biased_diff_log2 = (int)floor(log2_pixel) + 12;
 
     for (uint i = 1; i < params.path_length; ++i) 
     {   
@@ -201,7 +204,7 @@ void FloatRender(uint2 dtid, float2 pixel_offset, float log2_pixel)
 
     uint power = 8;
 
-    for (uint i = 1; i < min(10000, max(512, params.path_length)); ++i) 
+    for (uint i = 1; i < min(10000, max(1024, params.path_length)); ++i) 
     {
         float2 next_dz;
         next_dz.x = 2.0 * (z.x * dz.x - z.y * dz.y) + 1.0;
@@ -260,6 +263,182 @@ void FloatRender(uint2 dtid, float2 pixel_offset, float log2_pixel)
     destImage[dtid.xy] = data;
 }
 
+#ifdef FLOATFLOAT
+
+struct FF {
+    float hi, lo;
+
+    precise FF operator+(FF b) {
+        precise float s = hi + b.hi;
+        precise float v = s - hi;
+        precise float e = (hi - (s - v)) + (b.hi - v) + (lo + b.lo);
+        FF res;
+        res.hi = s + e;
+        res.lo = e + (s - res.hi);
+        return res;
+    }
+
+    precise FF operator-(FF b) {
+        FF neg_b;
+        neg_b.hi = -b.hi;
+        neg_b.lo = -b.lo;
+        return this + neg_b;
+    }
+
+    precise FF operator*(FF b) {
+        const precise float factor = 4097.0f;
+
+        precise float c1 = hi * factor;
+        precise float a_hi = c1 - (c1 - hi);
+        precise float a_lo = hi - a_hi;
+        
+        precise float c2 = b.hi * factor;
+        precise float b_hi = c2 - (c2 - b.hi);
+        precise float b_lo = b.hi - b_hi;
+
+        precise float p = hi * b.hi;
+        precise float e = ((a_hi * b_hi - p) + a_hi * b_lo + a_lo * b_hi) + a_lo * b_lo;
+        e += hi * b.lo + lo * b.hi;
+
+        FF res;
+        res.hi = p + e;
+        res.lo = e + (p - res.hi);
+        return res;
+    }
+
+    precise FF operator*(float b) {
+        FF bf;
+        bf.hi = b;
+        bf.lo = 0.0f;
+        return this * bf;
+    }
+
+    precise FF operator+(float b) {
+        FF bf;
+        bf.hi = b;
+        bf.lo = 0.0f;
+        return this + bf;
+    }
+};
+
+struct FF2 {
+    FF x, y;
+
+    precise FF2 operator+(FF2 b) {
+        FF2 res;
+        res.x = x + b.x;
+        res.y = y + b.y;
+        return res;
+    }
+
+    precise FF2 operator-(FF2 b) {
+        FF2 res;
+        res.x = x - b.x;
+        res.y = y - b.y;
+        return res;
+    }
+};
+
+
+FF to_ff(float h, float l = 0.0f) {
+    FF res;
+    res.hi = h;
+    res.lo = l;
+    return res;
+}
+
+FF double_to_ff(double d) {
+    FF res;
+    res.hi = (float)d;
+    res.lo = (float)(d - (double)res.hi);
+    return res;
+}
+
+FF2 to_ff2(FF x, FF y) {
+    FF2 res;
+    res.x = x;
+    res.y = y;
+    return res;
+}
+
+void FloatFloatRender(uint2 dtid, float2 pixel_offset, float log2_pixel)
+{
+    FF2 c;
+    c.x.hi = params.relative_centerff.x;
+    c.x.lo = params.relative_centerff.y;
+    c.y.hi = params.relative_centerff.z;
+    c.y.lo = params.relative_centerff.w;
+
+    FF zoom = to_ff(params.zoom_m) * exp2(params.zoom_e);
+
+    c.x = c.x + to_ff(pixel_offset.x) * zoom;
+    c.y = c.y + to_ff(pixel_offset.y) * zoom;
+
+    FF2 z   = to_ff2(to_ff(0.0f), to_ff(0.0f));
+    FF2 zold = z;
+    FF2 dz  = to_ff2(to_ff(1.0f), to_ff(0.0f));
+
+    float threshold_val = exp2(-log2_pixel + 10.0f);
+    uint power = 8;
+
+    for (uint i = 1; i < min(10000u, max(2048, uint(params.path_length))); ++i)
+    {
+        
+        FF2 next_dz;
+        next_dz.x = (z.x * dz.x - z.y * dz.y) * 2.0f + 1.0f;
+        next_dz.y = (z.x * dz.y + z.y * dz.x) * 2.0f;
+        dz = next_dz;
+
+        
+        FF2 next_z;
+        next_z.x = z.x * z.x - z.y * z.y + c.x;
+        next_z.y = z.x * z.y * 2.0f + c.y;
+        z = next_z;
+        
+        FF r2_ff = z.x * z.x + z.y * z.y;
+        FF d2_ff = dz.x * dz.x + dz.y * dz.y;
+        
+        float r2 = r2_ff.hi + r2_ff.lo;
+        float d2 = d2_ff.hi + d2_ff.lo;
+
+        if (d2 > threshold_val * threshold_val) break;
+
+        if (r2 > 16.0f)
+        {
+            float log2_Z = 0.5f * log2(r2);
+            float log2_dZ = 0.5f * log2(d2);
+            float safe_logZ = max(log2_Z, 1e-10f);
+            float log2_lnZ = log2(safe_logZ) - 0.528771f;  
+
+            float log2_dist = 1.0f + log2_Z + log2_lnZ - log2_dZ;
+            float alpha = clamp(exp2(log2_dist - log2_pixel), 0.0f, 1.0f);
+            float t = float(i) + 1.0f - log2(log2_Z);
+
+            destImage[dtid.xy] = float4(
+                sin(t * 0.2f) * alpha,
+                cos(1.0f + t * 0.3f) * alpha,
+                0.0f,
+                1.0f
+            );
+            return;
+        }
+
+        FF dx = z.x - zold.x;
+        FF dy = z.y - zold.y;
+        FF diff2 = dx * dx + dy * dy;
+        float diff2_val = diff2.hi + diff2.lo;
+        if (diff2_val < 1e-17f) break;
+
+        if (i == power) {
+            zold = z;
+            power *= 2;
+        }
+    }
+
+    destImage[dtid.xy] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+#endif
 #ifdef FLOAT64
 
 #define PI 3.14159265358979323846L
@@ -425,8 +604,15 @@ void main(uint3 dtid : SV_DispatchThreadID)
         // pixel size fits into float. Use it to speed up compuctations.
         FloatRender(dtid.xy, pixel_offset, log2_pixel);
     }
+#ifdef FLOATFLOAT
+    else if (log2_pixel > -40.5) 
+    {
+        // pixel size fits into float. Use it to speed up compuctations.
+        FloatFloatRender(dtid.xy, pixel_offset, log2_pixel);
+    }
+#endif
 #ifdef FLOAT64
-    else if (log2_pixel > -40.0)
+    else if (log2_pixel > -60.0)
     {
         // pixel size fits into float. Use it to speed up compuctations.
         DoubleRender(dtid.xy, pixel_offset, log2_pixel);
@@ -434,7 +620,8 @@ void main(uint3 dtid : SV_DispatchThreadID)
 #endif
     else
     {
-        DeepRender(dtid.xy, pixel_offset, log2_pixel);
+        destImage[dtid.xy] = float4(0, 0, 0, 1);
+        //DeepRender(dtid.xy, pixel_offset, log2_pixel);
     }
 }
 

@@ -32,3 +32,6 @@ spirv-opt -O kernel.spv -o kernel_opt.spv
 
 dxc -DFLOAT64 -Wall -Wextra -spirv -T cs_6_0 "-fspv-target-env=vulkan1.1" -E main $OPT kernel.hlsl -Fo kernel64.spv || $(Write-Host "Error: Shader 64bit don't compiled" -Fore red; exit 1)
 spirv-opt -O kernel64.spv -o kernel64_opt.spv
+
+dxc -DFLOATFLOAT -Wall -Wextra -spirv -T cs_6_0 "-fspv-target-env=vulkan1.1" -E main $OPT kernel.hlsl -Fo kernelff.spv || $(Write-Host "Error: Shader float-float don't compiled" -Fore red; exit 1)
+spirv-opt -O kernelff.spv -o kernelff_opt.spv
