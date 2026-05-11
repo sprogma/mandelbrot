@@ -1,3 +1,4 @@
+if (!$CLANG) $CLANG = "clang"
 
 $DEBUG = @("-g")
 # $DEBUG = @("-g", "-fsanitize=address")
@@ -32,12 +33,12 @@ else
     $LDFLAGS = -split"$(pkg-config --libs sdl3 vulkan libavcodec libavutil libswscale libavformat) -lm" + $DEBUG
 }
 
-clang (ls *.c -Exclude lli_test.c | % { 
-    (clang -c $_ -o "$_.o" $CFLAGS | oh) || $(Write-Host "Error: file $($_.Name) con't compiled" -Fore red; exit 1)
+& $CLANG (ls *.c -Exclude lli_test.c | % { 
+    (& $CLANG -c $_ -o "$_.o" $CFLAGS | oh) || $(Write-Host "Error: file $($_.Name) con't compiled" -Fore red; exit 1)
     "$_.o"
 }) -o frac.exe $LDFLAGS || $(Write-Host "Error: code don't linked" -Fore red; exit 1)
 
-clang lli_test.c -o test.exe -lm ($CFLAGS|?{$_ -notmatch "-O\d"}) || $(Write-Host "Error: tests don't compiled" -Fore red; exit 1)
+& $CLANG lli_test.c -o test.exe -lm ($CFLAGS|?{$_ -notmatch "-O\d"}) || $(Write-Host "Error: tests don't compiled" -Fore red; exit 1)
 ./test.exe || $(Write-Host "Error: tests failed" -Fore red; exit 1)
 
 $OPT = "-O3", "-all-resources-bound"
