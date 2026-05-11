@@ -218,6 +218,12 @@ brainrot.exe -l # to see fps/current zoom/other information
     data.zoom_step = pow(pow(2.0, -config.i_zoom_ps), 1.0 / config.fps);
 
     auto render = init_render(&config);
+
+    if (render == NULL)
+    {
+        printf("Error: render not initializated.\n");
+        return 1;
+    }
     
     init_path(render, &data, 1e-2, config.start_x, config.start_y);
 
