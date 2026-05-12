@@ -24,8 +24,8 @@ frac.exe: $(OBJS)
 %.o: %.c
 	$(CLANG) -c $< -o $@ $(CFLAGS)
 
-test: lli_test.c
-	@$(CLANG) lli_test.c -o test.exe -lm $(filter-out -O3, $(CFLAGS))
+test: src/lli_test.c
+	@$(CLANG) src/lli_test.c -o test.exe -lm $(filter-out -O3, $(CFLAGS))
 	@./test.exe
 
 shaders: kernel.hlsl
