@@ -382,7 +382,7 @@ int depth_searcher(void *params)
             lli_copy((void *)info->best_z, z);
             lli_as_double2(z, BITS_EXP, (void *)&info->zf, (void *)&info->ze);
 
-            printf("new best, center near %12.8lf %12.8lf [depth %lld]\n", lli_as_double((void *)info->best_x, BITS_EXP), lli_as_double((void *)info->best_y, BITS_EXP), res);
+            printf("found new best point:\n[position = %12.8lf %12.8lf] [depth = %10lld]\n", lli_as_double((void *)info->best_x, BITS_EXP), lli_as_double((void *)info->best_y, BITS_EXP), res);
         }
         else if (cnt % 30 == 0)
         {
@@ -514,7 +514,7 @@ void optimize_depth(struct lli *x, struct lli *y, int64_t stime, bool ignore_sta
     int64_t t = time(NULL);
     while (time(NULL) - t < stime)
     {
-        printf("Found:  depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f | %lld s. left\n", 
+        printf("searching for point:  depth=%10lld [%7.1f%%] | checks=%10lld | zoom ~= 2 ^%10.2f | %lld s. left\n", 
                info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, 
                -(log2(0.1 + info.zf) + info.ze), stime - (time(NULL) - t));
         SDL_Delay(500);
@@ -522,14 +522,14 @@ void optimize_depth(struct lli *x, struct lli *y, int64_t stime, bool ignore_sta
 
     printf("Ending...\n");
     info.search = 0;
-    printf("Result: depth=%10lld = %7.1f%% | checks=%10lld | zoom ~= 2 ^%10.2f\n", 
-           info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes, -(log2(0.1 + info.zf) + info.ze));
 
     for (int i = 0; i < workers; ++i)
     {
         int status;
         SDL_WaitThread(threads[i], &status);
     }
+    
+    printf("Best found point deph: %10lld [%7.1f%%] in %lld checks\n", info.best, info.best * 100.0 / MAX_PATH_LENGTH, info.tryes);
 
     SDL_DestroyRWLock(info.lock);
 }
