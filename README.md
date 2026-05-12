@@ -258,6 +258,8 @@ In some places, fractal is so tight, that points start generating [white noise](
 Simple solution is to use some well known techics, like TAA, SMAA, or even DLAA 😰.
 But i found very intresting method, based on calculating distance to Mandelbrot set using derivative of $Z_n$.
 Some of this idieas are described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
+
+
 (In simple words, we try to calculate $d = F/dF$, where $F$ is exponential function ( $F \approx Z_0^{(2^n)}$ ), so, we got $\ln |Z_n| \approx 2^n \cdot ln |Z_0|$, and 
 so, $\frac{\ln |Z_n|}{2^n} \approx \ln |Z_0|$.
 Next, using [Böttcher's equation](https://en.wikipedia.org/wiki/B%C3%B6ttcher%27s_equation), we can parametrizate Mandelbrot set so, that edge will always
