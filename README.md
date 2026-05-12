@@ -27,7 +27,7 @@ Modern and high-performance GPU destroyer.
 *   🖼️ **Minimalistic GUI** - All GUI you get is one clean window, with arrows as manipulators, inspired by most modern designs.
 *   🎥 **Video Export** - Save resulting useless records on your disk, so they will consume space in addition to GPU powers.
 *   🐧&🪟 **Cross Platform** - This render will happily consume power from both the tux and the M$.
-*   ~~🦀~~ **No Rust** - This program <u>is not</u> written in [Rust](https://rust-lang.org/)
+*   ~~🦀~~ **No Rust** - This program __is not__ written in [Rust](https://rust-lang.org/)
 
 
 ## 🎞 Preview
