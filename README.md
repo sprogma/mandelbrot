@@ -258,7 +258,7 @@ In some places, fractal is so tight, that points start generating [white noise](
 Simple solution is to use some well known techics, like TAA, SMAA, or even DLAA 😰.
 But i found very intresting method, based on calculating distance to Mandelbrot set using derivative of $Z_n$.
 It is described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
-Using that simple formula ($d = \frac{1 - \left| \frac{\partial z_p}{\partial z_0} \right|^2}{\left| \frac{\partial z_p}{\partial c} \left( 1 + \frac{\partial z_p}{\partial z_0} \right) \right|} \approx \frac{1 - |\lambda|}{\left| \frac{\partial z_p}{\partial c} (1 + \lambda) \right|}$) - we can calculate distance to border.
+Using that simple formula $$d = \frac{1 - \left| \frac{\partial z_p}{\partial z_0} \right|^2}{\left| \frac{\partial z_p}{\partial c} \left( 1 + \frac{\partial z_p}{\partial z_0} \right) \right|} \approx \frac{1 - |\lambda|}{\left| \frac{\partial z_p}{\partial c} (1 + \lambda) \right|}$$ - we can calculate distance to border.
 Then, we will use fade out to black color the more near point is to set (comparing it to one pixel size). That will remove all noises, without any AI.
 
 Also, this distance can be sign for early exit. If point is so near edge, that it will be 100% black, we can stop calculating it's path.
