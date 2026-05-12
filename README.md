@@ -22,7 +22,7 @@ Modern and high-performance GPU destroyer.
 *   🚀 **Blazingly Fast** - Uses all powers of your computer to create useless pictures.
 *   🌋 **Modern GPGPU Technologies** - All you gain from this is ~2k loc of render's initialization.
 *   ♾️ **Infinite Zoom** - Limited only by your powers and RAM.
-*   🏹 **Precision** - You will not see any float lags. (I know secret place where one is, but I won't tell it you)
+*   🏹 **Precision** - You will not see any float artefacts. (I know secret place where one is, but I won't tell it you)
 *   🎨 **Great Palette** - It was selected once, and don't changed since that. This prove it's genius.
 *   🖼️ **Minimalistic GUI** - All GUI you get is one clean window, with arrows as manipulators, inspired by most modern designs.
 *   🎥 **Video Export** - Save resulting useless records on your disk, so they will consume space in addition to usages of GPU powers.
