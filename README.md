@@ -17,7 +17,7 @@ Modern and high-performance GPU destroyer.
 
 ---
 
-## ⚡⚡ Features
+## ⚡ Features ⚡
 
 *   🚀 **Blazingly Fast** - Uses all powers of your computer to create useless pictures.
 *   🌋 **Modern GPGPU Technologies** - All you gain from this is ~2k loc of render's initialization.
