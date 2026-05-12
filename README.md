@@ -260,7 +260,7 @@ But i found very intresting method, based on calculating distance to Mandelbrot 
 Some of this idieas are described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
 
 
-(In simple words, we try to calculate $d = F/dF$, where $F$ is exponential function ( $F \approx Z_0^{(2^n)}$ ), so, we got $\ln |Z_n| \approx 2^n \cdot ln |Z_0|$, and 
+(In simple words, we have $F$ - exponential function ( $F \approx Z_0^{(2^n)}$ ), so, we got $\ln |Z_n| \approx 2^n \cdot ln |Z_0|$, and 
 so, $\frac{\ln |Z_n|}{2^n} \approx \ln |Z_0|$.
 Next, using [Böttcher's equation](https://en.wikipedia.org/wiki/B%C3%B6ttcher%27s_equation), we can parametrizate Mandelbrot set so, that edge will always
 have $\Phi(c) = 1$ (We project set into circle of radius 1). By some chance, using formula from link, we get that $\ln \Phi(c) = \lim \frac{\ln |Z_n|}{2^n}$, and in our case, we know it is almost equal to $Z_0$. How, we can simply use Newton equation, to calculate distance from point to set.
