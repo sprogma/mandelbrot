@@ -127,34 +127,34 @@ Now, when you installed program, here are set of quick commands to get some resu
 ```powershell
 
 # 1.  Simply open Mandelbrot set window. (see Controls section to see how you can walk)
-.\frac.exe -st 0
+./frac.exe -st 0
 
 # 1*. as 1, but select device to run on manually (list can be viewed at start of frac.exe, or in vulkaninfo) (devices are starting from 0 to ...)
-.\frac.exe -st 0 -d 1
+./frac.exe -st 0 -d 1
 
 # 2.  Search for interesting point for 30 seconds, and open interactive window. (The more deeper is point, the more interesting it is)
-.\frac.exe -st 30
+./frac.exe -st 30
 
 # 3.  Search for interesting point for 30 seconds near coordinates X Y
-.\frac.exe -st 30 -c -1.543689 1e-100
+./frac.exe -st 30 -c -1.543689 1e-100
 
 # 4.  Create simple video, named a.mkv long for 5 seconds (and search for interesting point for 30s)
-.\frac.exe -t 5 -st 30 -o a.mkv
+./frac.exe -t 5 -st 30 -o a.mkv
 
 # 5.  ... and with framerate 24 frames per second (default is 30)
-.\frac.exe -t 5 -st 30 -o a.mkv -f 24
+./frac.exe -t 5 -st 30 -o a.mkv -f 24
 
 # 6.  ... and with zoom speed 2^3 per second
-.\frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3
+./frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3
 
 # 7.  ... and with compression preset 3 (from 0 = most fast & precise, to 5 = most compressed)
-.\frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3
+./frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3
 
 # 8.  ... and with resolution 1600 x 900 (default is fullHD)
-.\frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3 -r 1600 900
+./frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3 -r 1600 900
 
 # 9.  ... and enable float-float emulation of double precision on small zooms (may raise speed on zoom <= 2^40)
-.\frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3 -r 1600 900 -ff
+./frac.exe -t 5 -st 30 -o a.mkv -f 24 -z 3 -p 3 -r 1600 900 -ff
 
 ```
 
