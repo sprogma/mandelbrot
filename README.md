@@ -214,7 +214,7 @@ touch stop_now
 
 It is thery simple. Simply calculate one point's path on CPU, and pass it's path buffer on GPU.
 There, in shader, calculate displacements from template path, which will be used to find pixels paths.
-After that, download resulting buffer, and sending it to ffmpeg api. And all this are done asynchronously.
+After that, download resulting buffer, and sending it to ffmpeg api. And all this is done asynchronously.
 
 Calculations on CPU includes floating point calculations with very big presicion. It is done using my single header library lli.h
 
