@@ -1,12 +1,12 @@
-#include "render.h"
-#include "mandelbrot.h"
+#include "../include/render.h"
+#include "../include/mandelbrot.h"
 
 #include "assert.h"
 #include "string.h"
 #include "stdio.h"
 #include "stdlib.h"
 
-#include "common_defines.h"
+#include "../include/common_defines.h"
 
 #include <vulkan/vulkan.h>
 #include <SDL3/SDL.h>

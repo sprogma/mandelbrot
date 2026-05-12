@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define LLI_SOURCE
-#include "lli.h"
+#include "../include/lli.h"
 
 void lli_print_hex(struct lli *a, const char *name) {
     _lli_to_i_state(a, 1); 

@@ -8,8 +8,8 @@
 #include "inttypes.h"
 
 
-#include "mandelbrot.h"
-#include "render.h"
+#include "../include/mandelbrot.h"
+#include "../include/render.h"
 
 
 double normal_strtod(const char *str, const char *flag_name)

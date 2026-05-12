@@ -7,12 +7,12 @@
 
 #include "SDL3/SDL.h"
 
-#include "render.h"
-#include "mandelbrot.h"
-#include "common_defines.h"
+#include "../include/render.h"
+#include "../include/mandelbrot.h"
+#include "../include/common_defines.h"
 
 
-#include "lli.h"
+#include "../include/lli.h"
 
 
 int init_path(struct base_render *render, struct path_data *data, double start_zoom, double start_x, double start_y)
