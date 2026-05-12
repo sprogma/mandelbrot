@@ -1,8 +1,17 @@
 # 🌌 Mandelbrot Set Renderer
 
-https://en.wikipedia.org/wiki/Mandelbrot_set
+<table width="100%">
+    <tr>
+        <td width="20%"><img src="demo/1.png" alt="example1" width="100%"></td>
+        <td width="20%"><img src="demo/2.png" alt="example2" width="100%"></td>
+        <td width="20%"><img src="demo/3.png" alt="example3" width="100%"></td>
+        <td width="20%"><img src="demo/4.png" alt="example4" width="100%"></td>
+        <td width="20%"><img src="demo/5.png" alt="example5" width="100%"></td>
+    </tr>
+</table>
 
-![example1](demo/1.png)![example2](demo/2.png)![example3](demo/3.png)![example4](demo/4.png)![example5](demo/5.png)
+
+https://en.wikipedia.org/wiki/Mandelbrot_set
 
 Modern and high-performance GPU destroyer.
 
