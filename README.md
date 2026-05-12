@@ -25,7 +25,7 @@ Modern and high-performance GPU destroyer.
 *   🏹 **Precision** - You will not see any float lags. (I know secret place where one is, but I won't tell it you)
 *   🎨 **Great Palette** - It was selected once, and don't changed since that. This prove it's genius.
 *   🖼️ **Minimalistic GUI** - All GUI you get is one clean window, with arrows as manipulators, inspired by most modern designs.
-*   🎥 **Video Export** - Save resulting useless records on your disk, so they will consume space in addition to GPU powers.
+*   🎥 **Video Export** - Save resulting useless records on your disk, so they will consume space in addition to usages of GPU powers.
 *   🐧&🪟 **Cross Platform** - This render will happily consume power from both the tux and the M$.
 *   ~~🦀~~ **No Rust** - This program __is not__ written in [Rust](https://rust-lang.org/)
 
