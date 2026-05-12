@@ -262,7 +262,7 @@ Some of this idieas are described on [page 20 of this book](https://mathr.co.uk/
 so, $\frac{\ln |Z_n|}{2^n} \approx \ln |Z_0|$.
 Next, using [Böttcher's equation](https://en.wikipedia.org/wiki/B%C3%B6ttcher%27s_equation), we can parametrizate Mandelbrot set so, that edge will always
 have $\Phi(c) = 1$ (We project set into circle of radius 1). By some chance, using formula from link, we get that $\ln \Phi(c) = \lim \frac{\ln |Z_n|}{2^n}$, and in our case, we know it is almost equal to $Z_0$. How, we can simply use Newton equation, to calculate distance from point to set.
-First, use $ln \Phi(c)$, so it will be equal to $0$ on set edge. Next, use formula 
+First, use $\ln \Phi(c)$, so it will be equal to $0$ on set edge. Next, use formula (standart Newton formula)
 
 $$ d \approx \frac{\ln |\Phi (c)|}{\left|\frac{\partial }{\partial c}\ln |\Phi (c)|\right|} $$
 
