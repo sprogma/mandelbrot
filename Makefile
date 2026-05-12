@@ -11,7 +11,7 @@ LDFLAGS = $(shell pkg-config --libs $(PKGS)) -lm $(DEBUG)
 OPT = -O3 -all-resources-bound
 DXC_FLAGS = -Wall -Wextra -spirv -T cs_6_0 -E main $(OPT)
 
-SRCS = $(filter-out lli_test.c, $(wildcard src/*.c))
+SRCS = $(filter-out src/lli_test.c, $(wildcard src/*.c))
 OBJS = $(SRCS:.c=.o)
 
 .PHONY: all clean test shaders
