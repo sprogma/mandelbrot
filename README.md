@@ -257,13 +257,8 @@ In some places, fractal is so tight, that points start generating [white noise](
 
 Simple solution is to use some well known techics, like TAA, SMAA, or even DLAA 😰.
 But i found very intresting method, based on calculating distance to Mandelbrot set using derivative of $Z_n$.
-Some variant is described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
-After simplifying and throwing out some useless parts, and reinventing others, we get simple formula: 
-
-$$d \approx \frac{|z_n| \cdot \ln |z_n|}{|z'_n|}$$
-
-Now, we can calculate average distance to border. 
-(in simple words, we try to calculate $d = F/dF$, where $F$ is exponential function ($F \approx Z_0^(2^n)$), so, we got $\ln |Z_n| \approx 2^n \cdot ln |Z_0|$, and 
+Some of this idieas are described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
+(In simple words, we try to calculate $d = F/dF$, where $F$ is exponential function ( $F \approx Z_0^{(2^n)}$ ), so, we got $\ln |Z_n| \approx 2^n \cdot ln |Z_0|$, and 
 so, $\frac{\ln |Z_n|}{2^n} \approx \ln |Z_0|$.
 Next, using [Böttcher's equation](https://en.wikipedia.org/wiki/B%C3%B6ttcher%27s_equation), we can parametrizate Mandelbrot set so, that edge will always
 have $\Phi(c) = 1$ (We project set into circle of radius 1). By some chance, using formula from link, we get that $\ln \Phi(c) = \lim \frac{\ln |Z_n|}{2^n}$, and in our case, we know it is almost equal to $Z_0$. How, we can simply use Newton equation, to calculate distance from point to set.
@@ -275,8 +270,12 @@ next we get
 
 $$ d \approx \frac{\frac{\ln |z_{n}|}{2^n}}{\frac{|z_n ^ {\prime} | }{ 2^n \cdot |z_{n}| }} $$
 
-and finally, $d \approx \frac{ |z_{n}|\cdot \ln |z_{n}| }{ |z_{n}^{\prime }| }$
-Then, we will use fade out to black color the more near point is to set (comparing it to one pixel size). That will remove all noises, without any AI.
+and finally, $d \approx \frac{ |z_{n}|\cdot \ln |z_{n}| }{ |z_{n}^{\prime }| }$)
+
+
+Now, we can calculate average distance to border!
+Then, we will use fade out to black color the more near point is to set (comparing it to one pixel size). 
+That will remove all noises, without any AI, or drawing images of 16 times bigger sizes.
 
 Also, this distance can be sign for early exit. If point is so near edge, that it will be 100% black, we can stop calculating it's path.
 
