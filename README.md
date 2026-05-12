@@ -218,7 +218,7 @@ After that, download resulting buffer, and sending it to ffmpeg api. And all thi
 
 Calculations on CPU includes floating point calculations with very big presicion. It is done using my single header library lli.h
 
-There was implemented Fast Fourier Transform, using SIMD blocks, to be 🚀 **Blazingly Fast**. Also, additions are also well-optimized.
+There was implemented Fast Fourier Transform, using SIMD blocks, to be 🚀 **Blazingly Fast**. Additions are also well-optimized.
 
 GPU part uses many textures, staging buffers, other cool things, and is parallel, so it must fully load GPU blocks. The only bottleneck may be compression of frames, which
 is little unpredictable because of ffmpeg.
