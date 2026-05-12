@@ -8,5 +8,7 @@
 *.mp4
 *.spv
 *.mkv
+*.mp3
+*.wav
 !spv/
 !spv/**/*.spv

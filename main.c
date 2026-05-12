@@ -80,7 +80,7 @@ int main(int argc, const char **argv)
 {
     struct render_config config = {
         .i_start_zoom = 0.0,
-        .i_zoom_time = NAN,
+        .i_zoom_time = 1e10,
         .i_zoom_ps = 1.0,
         .output_filename = NULL,
         .show_info = true,
@@ -102,18 +102,18 @@ int main(int argc, const char **argv)
 ------ mandelbrot ------
 
 use -o filename to write video to file
-use -s X to select intial zoom [power of 2]
+---use -s X to select intial zoom [power of 2]
 use -z X to select zooming per second [power of 2]
 use -t X to select zooming time [seconds]
 use -st X to select serach waiting time
-use -l   to enable showing/logging information
+---use -l   to enable showing/logging information
 use -r X Y to select resolution in pixels.
 use -d X to select device by d.
 use -f X to select fps.
 use -p X to select preset [0-5] [fast-small].
-use -f64 to enable float64 on zooms <~ 2^60.
+---use -f64 to enable float64 on zooms <~ 2^60.
 use -ff to enable float-float acceleration on zooms <~ 2^42
-use -ae to enable accelerated video encoding (if supported by device).
+---use -ae to enable accelerated video encoding (if supported by device).
 use -c X Y [doubles] to select starting point. It will be still updated to find more deep image, but changes will be not big (near ~0.01 in distance)
 
 if you used -e:
@@ -131,8 +131,7 @@ default device is any discrete gpu if it exists, else one of other.
 
 examples:
 
-brainrot.exe # simple start
-brainrot.exe -l # to see fps/current zoom/other information
+see README.md
 
 )DOC");
             return 0;

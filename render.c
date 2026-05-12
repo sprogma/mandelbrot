@@ -1616,8 +1616,8 @@ void render_image(struct base_render *br, struct path_data *path)
         {    
             return;
         }
-        params.center[0] = params.db_center[0];
-        params.center[1] = params.db_center[1];
+        double ccx = params.center[0] = params.db_center[0];
+        double ccy = params.center[1] = params.db_center[1];
         if (r->config.use_floatfloat)
         {
             // convert db_center
@@ -1909,6 +1909,14 @@ void render_image(struct base_render *br, struct path_data *path)
                 else if (e.type == SDL_EVENT_MOUSE_WHEEL) 
                 {   
                     dz -= e.wheel.y * 0.01;
+                }
+                else if (e.type == SDL_EVENT_KEY_DOWN) 
+                {   
+                    if (e.key.key == SDLK_SPACE)
+                    {
+                        printf("Current center: [average] %.10lf %.10lf\n", ccx, ccy);
+                        dz -= e.wheel.y * 0.01;
+                    }
                 }
             }
 
