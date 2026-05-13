@@ -244,7 +244,7 @@ Some points aren't jumping out for very long time, they got stuck in some loops,
 
 Next question, is how I get from integer loop count smooth color gradient. This process is well described in [this paper](https://linas.org/art-gallery/escape/escape.html). It requires calculation of how far a point jumped out, using fact $Z_n \approx Z^{2^n}$, so we take formula like $\log_2(\log_Z(d))$ (with some other constants) where d is range, and it really is near to not integer count of iterations. 
 
-But common method of calculations have one disadvantage, it requires big precision calculations for each point on screen.
+Next, common method of Mandelbrot set calculations have one disadvantage, it requires big precision calculations for each point on screen.
 So, i used [perturbation theory](https://en.wikipedia.org/wiki/Perturbation_theory) to solve this problem.
 It allows to calculate only one point on screen with full precision, and all other points can use only float's 23 bit mantiss.
 
