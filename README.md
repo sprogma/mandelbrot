@@ -252,7 +252,7 @@ But, there is one more problem. Mantiss don't need to be very big, but exponent 
 So, i implement FloatExp structure, which contains float mantiss from [1, 2] and integer exponent. This allows infinite zoomings on GPU without precision loss.
 
 
-One more important find is [Antialiasing](https://en.wikipedia.org/wiki/Anti-aliasing_filter).
+One more important fing is [Antialiasing](https://en.wikipedia.org/wiki/Anti-aliasing_filter).
 In some places, fractal is so tight, that points start generating [white noise](https://en.wikipedia.org/wiki/White_noise) (or may be other color, I dont sure).
 
 Simple solution is to use some well known techics, like SSAA, TAA, SMAA, or even DLAA 😰.
