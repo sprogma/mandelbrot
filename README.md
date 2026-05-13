@@ -242,7 +242,7 @@ Then, color of point is selected, based on iteration, on which it was jumped out
 
 Some points aren't jumping out for very long time, they got stuck in some loops, (becouse it is [functional graph](https://en.wikipedia.org/wiki/Pseudoforest#Graphs_of_functions)), which can be found using [Brent's algorithm](https://en.wikipedia.org/wiki/Cycle_detection#Brent's_algorithm). It is used in low zoom float simulation. On hier zooms, effectivity of algorithm is very poor.
 
-Next question, is how I get from integer loop count smooth color gradient. This process is well described in [this paper](https://linas.org/art-gallery/escape/escape.html). It requires calculation of how far a point jumped out, using fact $Z_n \approx Z^{2^n}$, so we take formula like $\log_Z(\log_2(d))$ (with some other cobstants) where d is range, and it really is near to not integer count of iterations. 
+Next question, is how I get from integer loop count smooth color gradient. This process is well described in [this paper](https://linas.org/art-gallery/escape/escape.html). It requires calculation of how far a point jumped out, using fact $Z_n \approx Z^{2^n}$, so we take formula like $\log_Z(\log_2(d))$ (with some other constants) where d is range, and it really is near to not integer count of iterations. 
 
 But common method of calculations have one disadvantage, it requires big precision calculations for each point on screen.
 So, i used [perturbation theory](https://en.wikipedia.org/wiki/Perturbation_theory) to solve this problem.
