@@ -242,7 +242,7 @@ Then, color of point is selected, based on iteration, on which it was jumped out
 
 Some points aren't jumping out for very long time, they got stuck in some loops, (becouse it is [functional graph](https://en.wikipedia.org/wiki/Pseudoforest#Graphs_of_functions)), which can be found using [Brent's algorithm](https://en.wikipedia.org/wiki/Cycle_detection#Brent's_algorithm). It is used in low zoom float simulation. On hier zooms, effectivity of algorithm is very poor.
 
-Next question, is how I get from integer loop count smooth color gradient. This process is well described in [this paper](https://linas.org/art-gallery/escape/escape.html)
+Next question, is how I get from integer loop count smooth color gradient. This process is well described in [this paper](https://linas.org/art-gallery/escape/escape.html). It requires calculation of how far a point jumped out, using fact $Z_n \approx Z^{2^n}$, do we take log2 of range, and it really is near to not integer count of iterations. 
 
 But common method of calculations have one disadvantage, it requires big precision calculations for each point on screen.
 So, i used [perturbation theory](https://en.wikipedia.org/wiki/Perturbation_theory) to solve this problem.
@@ -253,9 +253,9 @@ So, i implement FloatExp structure, which contains float mantiss from [1, 2] and
 
 
 One more important find is [Antialiasing](https://en.wikipedia.org/wiki/Anti-aliasing_filter).
-In some places, fractal is so tight, that points start generating [white noise](https://en.wikipedia.org/wiki/White_noise) (or may be other color, I dont mind).
+In some places, fractal is so tight, that points start generating [white noise](https://en.wikipedia.org/wiki/White_noise) (or may be other color, I dont sure).
 
-Simple solution is to use some well known techics, like TAA, SMAA, or even DLAA 😰.
+Simple solution is to use some well known techics, like SSAA, TAA, SMAA, or even DLAA 😰.
 But i found very intresting method, based on calculating distance to Mandelbrot set using derivative of $Z_n$.
 Some of this idieas are described on [page 20 of this book](https://mathr.co.uk/mandelbrot/book-draft-2017-11-10.pdf). 
 
